@@ -1,6 +1,6 @@
 import type { ChunkState, DistanceZone } from "./types.js";
 
-export type RenderCapability = "ENGINE_SUPPORTED" | "ENGINE_LIMITED" | "NOT_IMPLEMENTABLE";
+export type RenderCapability = "CLIENT_LIMIT_ALLOWS_REQUEST" | "CLIENT_LIMIT_UNKNOWN" | "NOT_IMPLEMENTABLE";
 
 export interface FarViewDecision {
   readonly zone: DistanceZone;
@@ -28,6 +28,46 @@ const NEXT_STATES: Record<ChunkState, readonly ChunkState[]> = {
 };
 
 const MAX_HISTORY_PER_KEY = 8;
+const DEFAULT_SPATIAL_TARGET_COUNT = 100;
+const MAX_SPATIAL_TARGET_DISTANCE = 100;
+const RING_RADII = [4, 8, 16, 24, 32, 44, 56, 68, 84, 100] as const;
+const TARGETS_PER_RING = 10;
+const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
+
+export interface ChunkOffset {
+  readonly dx: number;
+  readonly dz: number;
+}
+
+/**
+ * Deterministic two-dimensional target distribution. This only creates logical
+ * chunk targets; it does not load or render chunks in the Bedrock client.
+ */
+export function generateSpatialFarOffsets(count = DEFAULT_SPATIAL_TARGET_COUNT): readonly ChunkOffset[] {
+  if (!Number.isInteger(count) || count < 1 || count > DEFAULT_SPATIAL_TARGET_COUNT) {
+    throw new Error("count must be an integer in the range 1..100");
+  }
+
+  const result: ChunkOffset[] = [];
+  const seen = new Set<string>();
+  for (let ringIndex = 0; ringIndex < RING_RADII.length && result.length < count; ringIndex++) {
+    const radius = RING_RADII[ringIndex]!;
+    for (let pointIndex = 0; pointIndex < TARGETS_PER_RING && result.length < count; pointIndex++) {
+      const angle = (2 * Math.PI * pointIndex) / TARGETS_PER_RING + ringIndex * GOLDEN_ANGLE;
+      const dx = Math.round(Math.cos(angle) * radius);
+      const dz = Math.round(Math.sin(angle) * radius);
+      const distance = Math.hypot(dx, dz);
+      if (distance > MAX_SPATIAL_TARGET_DISTANCE) continue;
+      const key = `${dx}:${dz}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      result.push({ dx, dz });
+    }
+  }
+
+  if (result.length !== count) throw new Error(`unable to generate ${count} unique spatial targets`);
+  return result;
+}
 
 export class FarViewCore {
   private readonly chunks = new Map<string, ChunkRecord>();
@@ -54,10 +94,12 @@ export class FarViewCore {
       return { capability: "NOT_IMPLEMENTABLE", requestedDistance, clientMaxRenderDistance };
     }
     if (clientMaxRenderDistance === null || !Number.isFinite(clientMaxRenderDistance) || clientMaxRenderDistance < 0) {
-      return { capability: "ENGINE_LIMITED", requestedDistance, clientMaxRenderDistance: null };
+      return { capability: "CLIENT_LIMIT_UNKNOWN", requestedDistance, clientMaxRenderDistance: null };
     }
     return {
-      capability: requestedDistance <= clientMaxRenderDistance ? "ENGINE_SUPPORTED" : "ENGINE_LIMITED",
+      // This only proves the client-reported configured maximum does not block
+      // the request. It does not prove engine loading or client rendering.
+      capability: requestedDistance <= clientMaxRenderDistance ? "CLIENT_LIMIT_ALLOWS_REQUEST" : "CLIENT_LIMIT_UNKNOWN",
       requestedDistance,
       clientMaxRenderDistance,
     };
