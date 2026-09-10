@@ -11,6 +11,14 @@ export interface ChunkRecord {
   lastRelevantTick: number;
 }
 
+const NEXT_STATES: Record<ChunkState, readonly ChunkState[]> = {
+  UNKNOWN: ["DISCOVERED"],
+  DISCOVERED: ["VISIBLE", "FAR", "RELEASED"],
+  VISIBLE: ["FAR", "RELEASED"],
+  FAR: ["RELEASED"],
+  RELEASED: ["UNKNOWN"],
+};
+
 export class FarViewCore {
   private readonly chunks = new Map<string, ChunkRecord>();
 
@@ -28,9 +36,34 @@ export class FarViewCore {
     return { zone: "OUT_OF_RANGE", detail: "MINIMAL", simulationAllowed: false };
   }
 
+  public observeDistance(key: string, distanceInChunks: number, tick: number): FarViewDecision {
+    const decision = this.classifyChunkDistance(distanceInChunks);
+    if (decision.zone === "OUT_OF_RANGE") {
+      this.release(key, tick);
+      return decision;
+    }
+
+    const targetState: ChunkState = decision.zone === "64-100" ? "FAR" : decision.zone === "32-64" ? "FAR" : "VISIBLE";
+    const current = this.chunks.get(key)?.state;
+    if (current === undefined) {
+      if (!this.transition(key, "DISCOVERED", tick)) return decision;
+      this.transition(key, targetState, tick);
+    } else if (current !== targetState) {
+      if (current === "RELEASED") {
+        this.transition(key, "UNKNOWN", tick);
+        this.transition(key, "DISCOVERED", tick);
+        this.transition(key, targetState, tick);
+      } else if (NEXT_STATES[current].includes(targetState)) {
+        this.transition(key, targetState, tick);
+      }
+    }
+    return decision;
+  }
+
   public transition(key: string, next: ChunkState, tick: number): boolean {
     const previous = this.chunks.get(key);
-    if (previous && previous.state === "RELEASED" && next !== "UNKNOWN") throw new Error("Released chunk must be rediscovered from UNKNOWN");
+    if (previous && previous.state !== next && !NEXT_STATES[previous.state].includes(next)) return false;
+    if (!previous && next !== "DISCOVERED") return false;
     if (!previous && this.chunks.size >= this.maxTrackedChunks) return false;
     this.chunks.set(key, { state: next, lastRelevantTick: tick });
     return true;
@@ -38,7 +71,8 @@ export class FarViewCore {
 
   public release(key: string, tick: number): void {
     const current = this.chunks.get(key);
-    if (!current) return;
+    if (!current || current.state === "RELEASED") return;
+    if (!NEXT_STATES[current.state].includes("RELEASED")) return;
     this.chunks.set(key, { state: "RELEASED", lastRelevantTick: tick });
   }
 
