@@ -31,7 +31,7 @@ function resolveEntity(id: string): Entity | undefined {
 export class BedrockCombatPort implements CombatExecutionPort {
   public validateTarget(request: AttackRequest): boolean {
     const target = resolveEntity(request.targetId);
-    return Boolean(target && !target.isValid);
+    return Boolean(target && target.isValid);
   }
 
   public applyDamage(request: AttackRequest, damage: number): boolean {
