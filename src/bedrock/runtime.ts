@@ -22,7 +22,7 @@ function resolveEntity(id: string): Entity | undefined {
       const entity = dimension.getEntities().find(candidate => candidate.id === id);
       if (entity) return entity;
     } catch {
-      // A missing/unavailable dimension is not a license to fabricate state.
+      // Runtime/API rejection is treated as unavailable state.
     }
   }
   return undefined;
@@ -31,12 +31,12 @@ function resolveEntity(id: string): Entity | undefined {
 export class BedrockCombatPort implements CombatExecutionPort {
   public validateTarget(request: AttackRequest): boolean {
     const target = resolveEntity(request.targetId);
-    return Boolean(target && target.isValid);
+    return Boolean(target?.isValid);
   }
 
   public applyDamage(request: AttackRequest, damage: number): boolean {
     const target = resolveEntity(request.targetId);
-    if (!target) return false;
+    if (!target?.isValid) return false;
     try {
       return target.applyDamage(damage);
     } catch {
@@ -46,12 +46,12 @@ export class BedrockCombatPort implements CombatExecutionPort {
 
   public applyKnockback(request: AttackRequest, impulse: Vec3): void {
     const target = resolveEntity(request.targetId);
-    if (!target) return;
+    if (!target?.isValid) return;
     const vector: Vector3 = { x: impulse.x, y: impulse.y, z: impulse.z };
     try {
       target.applyImpulse(vector);
     } catch {
-      // Runtime rejection remains a rejected runtime action; no synthetic success is emitted.
+      // Failed runtime action remains failed; no synthetic success is emitted.
     }
   }
 }
