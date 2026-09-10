@@ -13,7 +13,7 @@ export interface ChunkRecord {
 
 const NEXT_STATES: Record<ChunkState, readonly ChunkState[]> = {
   UNKNOWN: ["DISCOVERED"],
-  DISCOVERED: ["VISIBLE", "FAR", "RELEASED"],
+  DISCOVERED: ["VISIBLE", "RELEASED"],
   VISIBLE: ["FAR", "RELEASED"],
   FAR: ["VISIBLE", "RELEASED"],
   RELEASED: ["UNKNOWN"],
@@ -27,7 +27,9 @@ export class FarViewCore {
   }
 
   public classifyChunkDistance(distanceInChunks: number): FarViewDecision {
-    if (!Number.isFinite(distanceInChunks) || distanceInChunks < 0) return { zone: "OUT_OF_RANGE", detail: "MINIMAL", simulationAllowed: false };
+    if (!Number.isFinite(distanceInChunks) || distanceInChunks < 0) {
+      return { zone: "OUT_OF_RANGE", detail: "MINIMAL", simulationAllowed: false };
+    }
     if (distanceInChunks < 8) return { zone: "0-8", detail: "FULL", simulationAllowed: true };
     if (distanceInChunks < 16) return { zone: "8-16", detail: "HIGH", simulationAllowed: true };
     if (distanceInChunks < 32) return { zone: "16-32", detail: "MEDIUM", simulationAllowed: true };
@@ -45,14 +47,20 @@ export class FarViewCore {
 
     const targetState: ChunkState = decision.zone === "32-64" || decision.zone === "64-100" ? "FAR" : "VISIBLE";
     const current = this.chunks.get(key)?.state;
+
     if (current === undefined) {
       if (!this.transition(key, "DISCOVERED", tick)) return decision;
-      this.transition(key, targetState, tick);
-    } else if (current !== targetState) {
+      if (!this.transition(key, "VISIBLE", tick)) return decision;
+      if (targetState === "FAR") this.transition(key, "FAR", tick);
+      return decision;
+    }
+
+    if (current !== targetState) {
       if (current === "RELEASED") {
         this.transition(key, "UNKNOWN", tick);
         this.transition(key, "DISCOVERED", tick);
-        this.transition(key, targetState, tick);
+        this.transition(key, "VISIBLE", tick);
+        if (targetState === "FAR") this.transition(key, "FAR", tick);
       } else if (NEXT_STATES[current].includes(targetState)) {
         this.transition(key, targetState, tick);
       }
