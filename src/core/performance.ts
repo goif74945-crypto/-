@@ -43,7 +43,11 @@ export class BoundedPriorityScheduler<T> {
 
     if (this.queue.size >= this.limits.maxQueue) {
       const victim = this.findLowestPriorityKey();
-      const victimItem = victim ? this.queue.get(victim) : undefined;
+      if (victim === undefined) {
+        this.statsValue.rejected++;
+        return false;
+      }
+      const victimItem = this.queue.get(victim);
       if (!victimItem || PRIORITY[item.priority] <= PRIORITY[victimItem.priority]) {
         this.statsValue.rejected++;
         return false;
