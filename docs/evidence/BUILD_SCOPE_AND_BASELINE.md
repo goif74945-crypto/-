@@ -188,3 +188,30 @@ This baseline describes the actual repository state observed immediately before 
 Baseline reference commit: `5b3304a633ae12e8e380275c17c6718bbdc31064`
 
 The commit created by this baseline write must be used as the new baseline head for subsequent controlled changes.
+
+## 11. Controlled-Build Actions Already Performed / Recorded
+
+The following actions were performed before this section was added and are recorded here so the repository evidence remains the authoritative record rather than relying on chat statements:
+
+1. Repository `goif74945-crypto/-` and branch `main` were directly verified.
+2. The repository was inspected before implementation. At baseline it contained only `README.md` plus the existing evidence audit path; no addon implementation, manifest, dependency configuration, or tests were present.
+3. Existing `docs/evidence/PHASE_0_1_AUDIT.md` was treated as a claim set, not proof, and was independently checked against the repository/specification state.
+4. Official Microsoft documentation was checked for Script API capability. Confirmed documented API surfaces include the scheduling APIs (`run`, `runInterval`, `runJob`, `runTimeout`, `clearRun`, `clearJob`), relevant entity damage/knockback/impulse and view-direction APIs, dimension query/ray APIs, entity/item-related world events, and projectile component APIs.
+5. Official Microsoft documentation confirms that Script API module versions are versioned separately from the Minecraft product version. The current stable `@minecraft/server` documentation includes version `2.9.0`, but this does NOT prove that `2.9.0` is the exact module binding for Bedrock 26.45.
+6. Official Bedrock 26.45 hotfix documentation was checked. This confirms the existence of Bedrock 26.45 and its hotfix/stability changes, but does not by itself establish the exact Script API module binding.
+7. No authoritative evidence was found proving that an Add-on can force 100 real rendered chunks. Therefore 100 real rendered chunks remains NOT VERIFIED and cannot be represented as a guaranteed implementation capability.
+8. No authoritative evidence was found proving complete Java combat/gameplay parity for all required mechanics. Therefore full parity remains NOT VERIFIED until category-specific parity evidence exists.
+9. No runtime, performance, visual, mobile, or parity test evidence exists yet in the repository. These categories remain NOT VERIFIED.
+10. A controlled baseline write created commit `27adebc8690a1ea1b8144570d513664911293a97` on `main`. This commit is the current baseline head for subsequent controlled work.
+11. No implementation source was created by the controlled baseline step. The project therefore remains NOT COMPLETE and must not be reported as complete.
+
+## 12. Current Controlled State
+
+Repository: `goif74945-crypto/-`
+Branch: `main`
+Current baseline head: `27adebc8690a1ea1b8144570d513664911293a97`
+Authorized phase: PHASE 2 — Architecture, restricted by verified capability evidence.
+Implementation state: NOT IMPLEMENTED.
+Final state: NOT COMPLETE.
+
+The next controlled action must begin from the current head above. Any attempt to implement an unsupported API capability, claim 100 real rendered chunks, or claim Java parity without evidence must trigger FREEZE rather than a speculative implementation.
