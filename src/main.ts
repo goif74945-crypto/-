@@ -1,6 +1,6 @@
 import { world } from "@minecraft/server";
-import type { WorkItem, Priority, AttackRequest } from "./core/types.js";
-import { FarViewCore, type FarViewDecision } from "./core/far-view.js";
+import type { WorkItem, Priority } from "./core/types.js";
+import { FarViewCore, generateSpatialFarOffsets, type FarViewDecision } from "./core/far-view.js";
 import { BoundedPriorityScheduler, priorityForDistance } from "./core/performance.js";
 import { PlayabilityShield, type GameplayClass } from "./core/playability.js";
 import { AdaptivePerformanceGovernor } from "./core/governor.js";
@@ -9,8 +9,8 @@ import {
   DamageResolver, KnockbackResolver, SpearAdapter, SwordAdapter, UniversalAttackAPI,
 } from "./core/combat.js";
 import {
-  BedrockCombatPort, gameplayPressure, installRuntimeCombatObserver,
-  installRuntimeEventWiring, installRuntimeHeartbeat, installRuntimeHarness, readClientCapabilities,
+  BedrockCombatPort, gameplayPressure, installRuntimeEventWiring,
+  installRuntimeHeartbeat, installRuntimeHarness, readClientCapabilities, recordRuntimeError,
 } from "./bedrock/runtime.js";
 
 const farView = new FarViewCore(256);
@@ -21,20 +21,17 @@ const combat = new UniversalAttackAPI(new CooldownResolver(), new CriticalResolv
 const combatPort = new BedrockCombatPort();
 const MAX_FAR_TARGETS_PER_PLAYER = 100;
 const MAX_PLAYERS_PER_PRODUCER_TICK = 8;
-const FAR_OFFSETS = Array.from({ length: MAX_FAR_TARGETS_PER_PLAYER }, (_, index) => ({ dx: index + 1, dz: 0 }));
+const FAR_OFFSETS = generateSpatialFarOffsets(MAX_FAR_TARGETS_PER_PLAYER);
 
 installRuntimeEventWiring();
 installRuntimeHarness();
-installRuntimeCombatObserver((request: AttackRequest) => {
-  const definition = { id: request.weaponId, attackType: request.attackType, baseDamage: request.baseDamage, range: request.range, cooldownTicks: request.cooldownTicks, knockback: request.knockback, durabilityCost: request.durabilityCost, modifiers: request.modifiers, effects: request.effects } as const;
-  const context = { attackerId: request.attackerId, targetId: request.targetId, direction: request.direction, tick: request.tick, criticalEligible: request.criticalEligible } as const;
-  const adapter = request.attackType === "MELEE" ? new SwordAdapter(definition)
-    : request.attackType === "HEAVY_MELEE" ? new AxeAdapter(definition)
-    : request.attackType === "THRUST" ? new SpearAdapter(definition)
-    : request.attackType === "RANGED" ? new BowAdapter(definition)
-    : new CustomWeaponAdapter(definition);
-  combat.executeAdapter(adapter, context, combatPort);
-});
+
+/**
+ * Runtime combat remains observer-only until the canonical weapon catalogue and
+ * authoritative pre-damage mutation path are proven on Bedrock 26.45. This
+ * intentionally avoids manufacturing WeaponDefinition values from after-event
+ * observations and therefore avoids double damage / duplicated side effects.
+ */
 
 export function scheduleGameplayWork(kind: GameplayClass, key: string, tick: number, payload: () => void): boolean {
   if (shield.shouldDegrade(kind, tick)) return false;
@@ -83,7 +80,9 @@ function produceFarViewWork(tick: number): void {
           if (capability.capability === "NOT_IMPLEMENTABLE") farView.release(key, tick);
         });
       }
-    } catch { /* bounded producer; runtime harness records API failures */ }
+    } catch (error) {
+      recordRuntimeError(error);
+    }
   }
 }
 
@@ -99,8 +98,9 @@ installRuntimeHeartbeat(tick => {
   const drained = scheduler.drain(item => item.payload(), budget, tick);
   const elapsedMs = Math.max(0, Date.now() - started);
   const workPressure = budget <= 0 ? 0 : Math.min(1, drained / budget);
-  const executionPressure = Math.min(1, elapsedMs / 50);
-  governor.evaluate({ queueRatio: queuePressure, workRatio: Math.max(workPressure, executionPressure), localGameplayActive: gameplay.active });
+  // DERIVED SIGNAL: JavaScript handler wall time, not FPS/frame-time telemetry.
+  const scriptExecutionPressure = Math.min(1, elapsedMs / 50);
+  governor.evaluate({ queueRatio: queuePressure, workRatio: Math.max(workPressure, scriptExecutionPressure), localGameplayActive: gameplay.active });
 });
 
 export { farView, scheduler, shield, governor, combat, combatPort };
