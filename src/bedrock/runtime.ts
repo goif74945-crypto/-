@@ -90,9 +90,9 @@ function buildObservedAttack(attacker: Entity, target: Entity, attackType: Attac
   const direction=attacker.getViewDirection(); const item=weaponId(attacker);
   return {attackerId:attacker.id,weaponId:item,targetId:target.id,attackType,direction,range:3,baseDamage,cooldownTicks:5,criticalEligible:false,knockback:2,durabilityCost:1,modifiers:[],effects:[],tick:system.currentTick};
 }
-function observeCombat(attacker: Entity|undefined,target: Entity|undefined,damage:number): void {
+function observeCombat(attacker: Entity|undefined,target: Entity|undefined,damage:number,attackTypeOverride?: AttackRequest["attackType"]): void {
   if(!attacker||!target||!attacker.isValid||!target.isValid||!combatObserver)return;
-  try { combatObserver(buildObservedAttack(attacker,target,weaponAttackType(attacker),Math.max(0,damage))); } catch(error){recordRuntimeError(error);}
+  try { combatObserver(buildObservedAttack(attacker,target,attackTypeOverride ?? weaponAttackType(attacker),Math.max(0,damage))); } catch(error){recordRuntimeError(error);}
 }
 
 export function installRuntimeEventWiring(): void {
@@ -109,7 +109,7 @@ export function installRuntimeEventWiring(): void {
   world.afterEvents.itemStartUse.subscribe(event=>{rememberEntity(event.source);mark("ITEM_USE");});
   world.afterEvents.entityHitEntity.subscribe(event=>{rememberEntity(event.damagingEntity);rememberEntity(event.hitEntity);mark("COMBAT");mark("NEAR_ENTITY");if(isBossEntity(event.hitEntity))mark("BOSS");if(event.damagingEntity.typeId==="minecraft:player"&&event.hitEntity.typeId==="minecraft:player")mark("PVP");});
   world.afterEvents.entityHurt.subscribe(event=>{rememberEntity(event.hurtEntity);mark("COMBAT");if(isBossEntity(event.hurtEntity))mark("BOSS");observeCombat(event.damageSource.damagingEntity,event.hurtEntity,event.damage);});
-  world.afterEvents.projectileHitEntity.subscribe(event=>{rememberEntity(event.source);const hit=event.getEntityHit();const entity=hit.entity;if(!entity)return;rememberEntity(entity);if(rememberProjectileEvent(event.projectile.id,entity.id,system.currentTick)){mark("PROJECTILE");observeCombat(event.source,entity,0);}});
+  world.afterEvents.projectileHitEntity.subscribe(event=>{rememberEntity(event.source);const hit=event.getEntityHit();const entity=hit.entity;if(!entity)return;rememberEntity(entity);if(rememberProjectileEvent(event.projectile.id,entity.id,system.currentTick)){mark("PROJECTILE");observeCombat(event.source,entity,0,"PROJECTILE");}});
   world.afterEvents.projectileHitBlock.subscribe(event=>{rememberEntity(event.source);rememberProjectileEvent(event.projectile.id,`block:${event.dimension.id}:${event.location.x}:${event.location.y}:${event.location.z}`,system.currentTick);mark("PROJECTILE");});
   world.afterEvents.entityDie.subscribe(event=>{rememberEntity(event.deadEntity);mark("IMPORTANT_EVENT");});
   world.afterEvents.leverAction.subscribe(()=>mark("REDSTONE")); world.afterEvents.pistonActivate.subscribe(()=>mark("REDSTONE")); world.afterEvents.pressurePlatePush.subscribe(()=>mark("REDSTONE"));
