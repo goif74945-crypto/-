@@ -123,16 +123,29 @@ export class KnockbackResolver {
 
 export interface ResolvedCombatTarget { readonly id: string; readonly entity: unknown; readonly distance: number; }
 
+export interface CombatCommitPlan {
+  readonly finalDamage: number;
+  readonly impulse: Vec3;
+  readonly armorStatus: CombatStageStatus;
+  readonly resistanceStatus: CombatStageStatus;
+  readonly projectileStatus: CombatStageStatus;
+}
+
+export interface CombatCommitResult {
+  readonly committed: boolean;
+  readonly effectStatuses: readonly CombatStageStatus[];
+  readonly durabilityStatus: CombatStageStatus;
+  readonly projectileStatus: CombatStageStatus;
+  readonly deathStatus: CombatStageStatus;
+  readonly lootStatus: CombatStageStatus;
+  readonly xpStatus: CombatStageStatus;
+}
+
 export interface CombatExecutionPort {
   resolveTarget(request: AttackRequest): ResolvedCombatTarget | undefined;
-  applyDamage(target: ResolvedCombatTarget, damage: number): boolean;
-  applyKnockback(target: ResolvedCombatTarget, impulse: Vec3): void;
   mitigateArmorDamage?: (target: ResolvedCombatTarget, request: AttackRequest, incomingDamage: number) => number;
   mitigateResistanceDamage?: (target: ResolvedCombatTarget, request: AttackRequest, incomingDamage: number) => number;
-  applyEffect?: (target: ResolvedCombatTarget, effect: CombatEffect) => boolean;
-  applyDurability?: (request: AttackRequest) => boolean;
-  resolveProjectileResult?: (request: AttackRequest, target: ResolvedCombatTarget) => CombatStageStatus;
-  resolveDeathLootXp?: (request: AttackRequest, target: ResolvedCombatTarget) => { death: CombatStageStatus; loot: CombatStageStatus; xp: CombatStageStatus };
+  commit: (request: AttackRequest, target: ResolvedCombatTarget, plan: CombatCommitPlan) => CombatCommitResult;
 }
 
 export class UniversalAttackAPI {
@@ -157,9 +170,7 @@ export class UniversalAttackAPI {
     if (!registeredWeapon) return this.reject(request, "WEAPON_UNREGISTERED");
     if (registeredWeapon.attackType !== request.attackType) return this.reject(request, "WEAPON_ATTACK_TYPE_MISMATCH");
     if (registeredWeapon.range !== request.range) return this.reject(request, "WEAPON_RANGE_MISMATCH");
-
-    const capabilityError = this.requiredCapabilityError(request, port);
-    if (capabilityError) return this.reject(request, capabilityError);
+    if (!port.commit) return this.reject(request, "ATOMIC_COMMIT_UNAVAILABLE");
 
     const target = port.resolveTarget(request);
     if (!target || target.id !== request.targetId || target.entity === undefined || target.entity === null) return this.reject(request, "TARGET_INVALID");
@@ -180,7 +191,7 @@ export class UniversalAttackAPI {
       if (result.status === "FAILED") return this.reject(request, "ARMOR_FAILED");
       postArmorDamage = result.value;
       armorStatus = "VERIFIED";
-    }
+    } else return this.reject(request, "ARMOR_CAPABILITY_UNVERIFIED");
 
     let finalDamage = postArmorDamage;
     let resistanceStatus: CombatStageStatus = "NOT_VERIFIED";
@@ -189,31 +200,29 @@ export class UniversalAttackAPI {
       if (result.status === "FAILED") return this.reject(request, "RESISTANCE_FAILED");
       finalDamage = result.value;
       resistanceStatus = "VERIFIED";
-    }
+    } else return this.reject(request, "RESISTANCE_CAPABILITY_UNVERIFIED");
     if (!Number.isFinite(finalDamage) || finalDamage < 0) return this.reject(request, "FINAL_DAMAGE_INVALID");
 
-    if (!port.applyDamage(target, finalDamage)) return this.reject(request, "DAMAGE_REJECTED");
-
     const impulse = this.knockback.resolve(request.direction, request.knockback);
-    port.applyKnockback(target, impulse);
+    const projectileStatus: CombatStageStatus = (request.attackType === "PROJECTILE" || request.attackType === "RANGED") ? "NOT_VERIFIED" : "NOT_APPLICABLE";
+    const plan: CombatCommitPlan = { finalDamage, impulse, armorStatus, resistanceStatus, projectileStatus };
 
-    const effectStatuses: CombatStageStatus[] = request.effects.length === 0
-      ? ["NOT_APPLICABLE"]
-      : request.effects.map(effect => { try { return port.applyEffect!(target, effect) ? "VERIFIED" : "FAILED"; } catch { return "FAILED"; } });
-    if (effectStatuses.some(status => status !== "VERIFIED" && status !== "NOT_APPLICABLE")) return this.reject(request, "EFFECT_STAGE_FAILED");
+    let commit: CombatCommitResult;
+    try { commit = port.commit(request, target, plan); }
+    catch { return this.reject(request, "COMMIT_EXCEPTION"); }
+    if (!commit.committed) return this.rejectWithStages(request, "COMMIT_REJECTED", commit, projectileStatus);
 
-    const durabilityStatus: CombatStageStatus = request.durabilityCost === 0
-      ? "NOT_APPLICABLE"
-      : safeBooleanStage(() => port.applyDurability!(request));
-    if (durabilityStatus === "FAILED") return this.reject(request, "DURABILITY_STAGE_FAILED");
-
-    const projectileStatus: CombatStageStatus = (request.attackType === "PROJECTILE" || request.attackType === "RANGED")
-      ? safeStage(() => port.resolveProjectileResult!(request, target))
-      : "NOT_APPLICABLE";
-    if (projectileStatus !== "VERIFIED" && projectileStatus !== "NOT_APPLICABLE") return this.reject(request, "PROJECTILE_STAGE_FAILED");
-
-    const postHit = safePostHit(() => port.resolveDeathLootXp!(request, target));
-    if (postHit.death !== "VERIFIED" || postHit.loot !== "VERIFIED" || postHit.xp !== "VERIFIED") return this.reject(request, "POST_HIT_STAGE_UNVERIFIED");
+    const mandatory = [
+      ...commit.effectStatuses,
+      commit.durabilityStatus,
+      commit.projectileStatus,
+      commit.deathStatus,
+      commit.lootStatus,
+      commit.xpStatus,
+    ];
+    if (mandatory.some(status => status !== "VERIFIED" && status !== "NOT_APPLICABLE")) {
+      throw new Error("COMMIT_CONTRACT_VIOLATION: committed transaction returned an unverified mandatory stage");
+    }
 
     const cooldownReadyAt = this.cooldown.commit(cooldownKey, request.tick, request.cooldownTicks);
     return {
@@ -227,23 +236,13 @@ export class UniversalAttackAPI {
       durabilityCost: request.durabilityCost,
       armorStatus,
       resistanceStatus,
-      effectStatuses,
-      durabilityStatus,
-      projectileStatus,
-      deathStatus: postHit.death,
-      lootStatus: postHit.loot,
-      xpStatus: postHit.xp,
+      effectStatuses: commit.effectStatuses,
+      durabilityStatus: commit.durabilityStatus,
+      projectileStatus: commit.projectileStatus,
+      deathStatus: commit.deathStatus,
+      lootStatus: commit.lootStatus,
+      xpStatus: commit.xpStatus,
     };
-  }
-
-  private requiredCapabilityError(request: AttackRequest, port: CombatExecutionPort): string | undefined {
-    if (!port.mitigateArmorDamage) return "ARMOR_CAPABILITY_UNVERIFIED";
-    if (!port.mitigateResistanceDamage) return "RESISTANCE_CAPABILITY_UNVERIFIED";
-    if (request.effects.length > 0 && !port.applyEffect) return "EFFECT_CAPABILITY_UNVERIFIED";
-    if (request.durabilityCost > 0 && !port.applyDurability) return "DURABILITY_CAPABILITY_UNVERIFIED";
-    if ((request.attackType === "PROJECTILE" || request.attackType === "RANGED") && !port.resolveProjectileResult) return "PROJECTILE_CAPABILITY_UNVERIFIED";
-    if (!port.resolveDeathLootXp) return "POST_HIT_CAPABILITY_UNVERIFIED";
-    return undefined;
   }
 
   private validateRequest(request: AttackRequest): string | undefined {
@@ -282,6 +281,28 @@ export class UniversalAttackAPI {
       xpStatus: "NOT_VERIFIED",
     };
   }
+
+  private rejectWithStages(request: AttackRequest, reason: string, commit: CombatCommitResult, fallbackProjectile: CombatStageStatus): CombatResult {
+    return {
+      accepted: false,
+      reason,
+      baseDamage: request.baseDamage,
+      modifiedDamage: 0,
+      finalDamage: 0,
+      critical: false,
+      knockback: { x: 0, y: 0, z: 0 },
+      cooldownReadyAt: request.tick,
+      durabilityCost: 0,
+      armorStatus: "NOT_VERIFIED",
+      resistanceStatus: "NOT_VERIFIED",
+      effectStatuses: commit.effectStatuses,
+      durabilityStatus: commit.durabilityStatus,
+      projectileStatus: commit.projectileStatus === "NOT_APPLICABLE" ? fallbackProjectile : commit.projectileStatus,
+      deathStatus: commit.deathStatus,
+      lootStatus: commit.lootStatus,
+      xpStatus: commit.xpStatus,
+    };
+  }
 }
 
 function isValidWeaponDefinition(definition: WeaponDefinition): boolean {
@@ -299,10 +320,4 @@ function isValidWeaponDefinition(definition: WeaponDefinition): boolean {
 function safeNumberStage(run: () => number): { status: "VERIFIED" | "FAILED"; value: number } {
   try { const value = run(); return Number.isFinite(value) && value >= 0 ? { status: "VERIFIED", value } : { status: "FAILED", value: 0 }; }
   catch { return { status: "FAILED", value: 0 }; }
-}
-function safeBooleanStage(run: () => boolean): CombatStageStatus { try { return run() ? "VERIFIED" : "FAILED"; } catch { return "FAILED"; } }
-function safeStage(run: () => CombatStageStatus): CombatStageStatus { try { return run(); } catch { return "FAILED"; } }
-function safePostHit(run: () => { death: CombatStageStatus; loot: CombatStageStatus; xp: CombatStageStatus }): { death: CombatStageStatus; loot: CombatStageStatus; xp: CombatStageStatus } {
-  try { return run(); }
-  catch { return { death: "FAILED", loot: "FAILED", xp: "FAILED" }; }
 }
