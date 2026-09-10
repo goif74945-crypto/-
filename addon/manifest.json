@@ -1,0 +1,26 @@
+{
+  "format_version": 2,
+  "header": {
+    "name": "NEXY FARVIEW 100",
+    "description": "NEXY_FARVIEW_100 Bedrock 26.45 behavior pack",
+    "uuid": "1055ebc5-0ada-4430-a770-e199edab0dd8",
+    "version": [0, 2, 0],
+    "min_engine_version": [1, 26, 45]
+  },
+  "modules": [
+    {
+      "description": "NEXY FARVIEW 100 script module",
+      "type": "script",
+      "language": "javascript",
+      "uuid": "ad2b2c55-1315-4583-a6b9-8a480668d48d",
+      "version": [0, 2, 0],
+      "entry": "scripts/main.js"
+    }
+  ],
+  "dependencies": [
+    {
+      "module_name": "@minecraft/server",
+      "version": "2.9.0"
+    }
+  ]
+}
