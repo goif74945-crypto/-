@@ -3,7 +3,7 @@ import { FarViewCore, type FarViewDecision } from "./core/far-view.js";
 import { BoundedPriorityScheduler, priorityForDistance } from "./core/performance.js";
 import { PlayabilityShield, type GameplayClass } from "./core/playability.js";
 import { AdaptivePerformanceGovernor } from "./core/governor.js";
-import { gameplayPressure, installRuntimeEventWiring, installRuntimeHeartbeat, installRuntimeHarness, samplePlayerPressure } from "./bedrock/runtime.js";
+import { gameplayPressure, installRuntimeEventWiring, installRuntimeHeartbeat, installRuntimeHarness } from "./bedrock/runtime.js";
 
 const farView = new FarViewCore(256);
 const scheduler = new BoundedPriorityScheduler<() => void>({ maxQueue: 256, maxPerWindow: 32, maxWorkAgeTicks: 40 });
@@ -59,7 +59,6 @@ export function releaseFarViewWork(key: string, tick: number): void {
 }
 
 installRuntimeHeartbeat(tick => {
-  samplePlayerPressure(tick);
   farView.reclaimStale(tick, 80);
   farView.clearReleased();
 
