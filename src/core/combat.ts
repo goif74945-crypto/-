@@ -1,5 +1,9 @@
 import type { AttackRequest, AttackType, CombatResult, CombatModifier, Vec3 } from "./types.js";
 
+const ATTACK_TYPES = new Set<AttackType>([
+  "MELEE", "HEAVY_MELEE", "THRUST", "SWEEP", "RANGED", "PROJECTILE", "SPECIAL",
+]);
+
 export interface WeaponDefinition {
   readonly id: string;
   readonly attackType: AttackType;
@@ -114,10 +118,16 @@ export class KnockbackResolver {
   }
 }
 
+export interface ResolvedCombatTarget {
+  readonly id: string;
+  readonly entity: unknown;
+  readonly distance: number;
+}
+
 export interface CombatExecutionPort {
-  validateTarget(request: AttackRequest): boolean;
-  applyDamage(request: AttackRequest, damage: number): boolean;
-  applyKnockback(request: AttackRequest, impulse: Vec3): void;
+  resolveTarget(request: AttackRequest): ResolvedCombatTarget | undefined;
+  applyDamage(target: ResolvedCombatTarget, damage: number): boolean;
+  applyKnockback(target: ResolvedCombatTarget, impulse: Vec3): void;
 }
 
 export class UniversalAttackAPI {
@@ -129,11 +139,12 @@ export class UniversalAttackAPI {
   ) {}
 
   public execute(request: AttackRequest, port: CombatExecutionPort): CombatResult {
-    if (!Number.isFinite(request.baseDamage) || request.baseDamage < 0) return this.reject(request, "INVALID_DAMAGE");
-    if (!Number.isFinite(request.range) || request.range < 0) return this.reject(request, "INVALID_RANGE");
-    if (!Number.isFinite(request.cooldownTicks) || request.cooldownTicks < 0) return this.reject(request, "INVALID_COOLDOWN");
-    if (!Number.isFinite(request.knockback) || request.knockback < 0) return this.reject(request, "INVALID_KNOCKBACK");
-    if (!port.validateTarget(request)) return this.reject(request, "TARGET_INVALID");
+    const validation = this.validateRequest(request);
+    if (validation) return this.reject(request, validation);
+
+    const target = port.resolveTarget(request);
+    if (!target || target.id !== request.targetId) return this.reject(request, "TARGET_INVALID");
+    if (!Number.isFinite(target.distance) || target.distance > request.range) return this.reject(request, "OUT_OF_RANGE");
 
     const cooldownKey = `${request.attackerId}:${request.weaponId}`;
     const blockedUntil = this.cooldown.validate(cooldownKey, request.tick);
@@ -142,11 +153,22 @@ export class UniversalAttackAPI {
     const critical = this.critical.resolve(request.criticalEligible, request.baseDamage);
     const finalDamage = this.damage.resolve(critical.damage, request.modifiers);
     const impulse = this.knockback.resolve(request.direction, request.knockback);
-    if (!port.applyDamage(request, finalDamage)) return this.reject(request, "DAMAGE_REJECTED");
+    if (!port.applyDamage(target, finalDamage)) return this.reject(request, "DAMAGE_REJECTED");
 
-    port.applyKnockback(request, impulse);
+    port.applyKnockback(target, impulse);
     const cooldownReadyAt = this.cooldown.commit(cooldownKey, request.tick, request.cooldownTicks);
     return { accepted: true, finalDamage, critical: critical.critical, knockback: impulse, cooldownReadyAt, durabilityCost: request.durabilityCost };
+  }
+
+  private validateRequest(request: AttackRequest): string | undefined {
+    if (!ATTACK_TYPES.has(request.attackType)) return "ATTACK_TYPE_INVALID";
+    if (!request.weaponId || !request.attackerId || !request.targetId) return "IDENTITY_INVALID";
+    if (!Number.isFinite(request.baseDamage) || request.baseDamage < 0) return "INVALID_DAMAGE";
+    if (!Number.isFinite(request.range) || request.range < 0) return "INVALID_RANGE";
+    if (!Number.isFinite(request.cooldownTicks) || request.cooldownTicks < 0) return "INVALID_COOLDOWN";
+    if (!Number.isFinite(request.knockback) || request.knockback < 0) return "INVALID_KNOCKBACK";
+    if (!Number.isFinite(request.durabilityCost) || request.durabilityCost < 0) return "INVALID_DURABILITY";
+    return undefined;
   }
 
   private reject(request: AttackRequest, reason: string, blockedUntil = request.tick): CombatResult {
