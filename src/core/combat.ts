@@ -54,15 +54,26 @@ export class CustomWeaponAdapter extends BaseAdapter {}
 export class CooldownResolver {
   private readonly readyAt = new Map<string, number>();
 
+  public constructor(private readonly maxEntries = 4096) {
+    if (maxEntries <= 0) throw new Error("maxEntries must be positive");
+  }
+
   public validate(key: string, tick: number): number | null {
+    this.prune(tick);
     const readyAt = this.readyAt.get(key) ?? 0;
     return tick >= readyAt ? null : readyAt;
   }
 
   public commit(key: string, tick: number, cooldownTicks: number): number {
+    this.prune(tick);
     const next = tick + Math.max(0, cooldownTicks);
+    if (!this.readyAt.has(key) && this.readyAt.size >= this.maxEntries) return next;
     this.readyAt.set(key, next);
     return next;
+  }
+
+  private prune(tick: number): void {
+    for (const [key, readyAt] of this.readyAt) if (readyAt <= tick) this.readyAt.delete(key);
   }
 }
 
