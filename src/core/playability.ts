@@ -11,28 +11,38 @@ const PROTECTED = new Set<GameplayClass>([
   "PROJECTILE", "BOSS", "PVP", "IMPORTANT_EVENT", "REDSTONE",
 ]);
 
+const BOSS_TYPE_IDS = new Set([
+  "minecraft:ender_dragon",
+  "minecraft:wither",
+  "minecraft:warden",
+  "minecraft:elder_guardian",
+]);
+
 export interface GameplayPressureSnapshot {
   readonly active: boolean;
   readonly activeKinds: readonly GameplayClass[];
   readonly lastActivityTick: number;
 }
 
-/** Event-fed gameplay pressure. It is deliberately independent of FAR/DECORATIVE work kind. */
 export class GameplayPressureTracker {
   private readonly activity = new Map<GameplayClass, number>();
 
   public constructor(
     private readonly holdTicks = 10,
     private readonly maxKinds = PROTECTED.size,
-  ) {}
+  ) {
+    if (!Number.isInteger(holdTicks) || holdTicks < 1) throw new Error("holdTicks must be a positive integer");
+    if (!Number.isInteger(maxKinds) || maxKinds < 1 || maxKinds > PROTECTED.size) throw new Error("maxKinds is out of range");
+  }
 
   public mark(kind: GameplayClass, tick: number): void {
-    if (!PROTECTED.has(kind)) return;
+    if (!PROTECTED.has(kind) || !Number.isInteger(tick) || tick < 0) return;
     if (!this.activity.has(kind) && this.activity.size >= this.maxKinds) return;
     this.activity.set(kind, tick);
   }
 
   public snapshot(tick: number): GameplayPressureSnapshot {
+    if (!Number.isInteger(tick) || tick < 0) throw new Error("tick must be a non-negative integer");
     const activeKinds: GameplayClass[] = [];
     for (const [kind, lastTick] of this.activity) {
       if (tick - lastTick <= this.holdTicks) activeKinds.push(kind);
@@ -64,5 +74,9 @@ export class PlayabilityShield {
   public shouldDegrade(kind: GameplayClass, tick: number): boolean {
     if (this.isProtected(kind)) return false;
     return this.pressure.isActive(tick);
+  }
+
+  public isBossTypeId(typeId: string): boolean {
+    return BOSS_TYPE_IDS.has(typeId);
   }
 }
