@@ -30,7 +30,7 @@ const NEXT_STATES: Record<ChunkState, readonly ChunkState[]> = {
 const MAX_HISTORY_PER_KEY = 8;
 const DEFAULT_SPATIAL_TARGET_COUNT = 100;
 const MAX_SPATIAL_TARGET_DISTANCE = 100;
-const RING_RADII = [4, 8, 16, 24, 32, 44, 56, 68, 84, 100] as const;
+const RING_RADII = [4, 8, 16, 24, 32, 44, 56, 68, 84, 99] as const;
 const TARGETS_PER_RING = 10;
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 
