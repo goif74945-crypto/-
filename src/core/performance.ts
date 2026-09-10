@@ -19,11 +19,12 @@ export interface SchedulerStats {
   readonly rejected: number;
   readonly executed: number;
   readonly deferred: number;
+  readonly cancelled: number;
 }
 
 export class BoundedPriorityScheduler<T> {
   private readonly queue = new Map<string, WorkItem<T>>();
-  private readonly statsValue = { admitted: 0, rejected: 0, executed: 0, deferred: 0 };
+  private readonly statsValue = { admitted: 0, rejected: 0, executed: 0, deferred: 0, cancelled: 0 };
 
   public constructor(private readonly limits: SchedulerLimits) {
     if (limits.maxQueue <= 0 || limits.maxPerWindow <= 0) throw new Error("Scheduler limits must be positive");
@@ -56,10 +57,17 @@ export class BoundedPriorityScheduler<T> {
     return true;
   }
 
-  public drain(handler: (item: WorkItem<T>) => void): number {
+  public cancel(key: string): boolean {
+    const existed = this.queue.delete(key);
+    if (existed) this.statsValue.cancelled++;
+    return existed;
+  }
+
+  public drain(handler: (item: WorkItem<T>) => void, maxItems = this.limits.maxPerWindow): number {
+    const limit = Math.max(0, Math.min(this.limits.maxPerWindow, Math.floor(maxItems)));
     const batch = [...this.queue.values()]
       .sort((a, b) => PRIORITY[b.priority] - PRIORITY[a.priority] || a.createdAtTick - b.createdAtTick)
-      .slice(0, this.limits.maxPerWindow);
+      .slice(0, limit);
 
     for (const item of batch) {
       this.queue.delete(item.key);
