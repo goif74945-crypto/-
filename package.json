@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "node --test dist/tests/core.test.js",
+    "test": "node --test dist/tests/*.test.js",
     "package:addon": "npm run build && node tools/package-addon.mjs",
     "check:static": "node tools/static-blocker-check.mjs",
     "check": "npm run check:static && npm run build && npm test",
