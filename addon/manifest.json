@@ -4,7 +4,7 @@
     "name": "NEXY FARVIEW 100",
     "description": "NEXY_FARVIEW_100 Bedrock 26.45 behavior pack",
     "uuid": "1055ebc5-0ada-4430-a770-e199edab0dd8",
-    "version": [0, 2, 0],
+    "version": [0, 3, 0],
     "min_engine_version": [1, 26, 45]
   },
   "modules": [
@@ -13,7 +13,7 @@
       "type": "script",
       "language": "javascript",
       "uuid": "ad2b2c55-1315-4583-a6b9-8a480668d48d",
-      "version": [0, 2, 0],
+      "version": [0, 3, 0],
       "entry": "scripts/main.js"
     }
   ],
