@@ -14,6 +14,10 @@ export interface ChunkRecord {
 export class FarViewCore {
   private readonly chunks = new Map<string, ChunkRecord>();
 
+  public constructor(private readonly maxTrackedChunks = 256) {
+    if (maxTrackedChunks <= 0) throw new Error("maxTrackedChunks must be positive");
+  }
+
   public classifyChunkDistance(distanceInChunks: number): FarViewDecision {
     if (!Number.isFinite(distanceInChunks) || distanceInChunks < 0) return { zone: "OUT_OF_RANGE", detail: "MINIMAL", simulationAllowed: false };
     if (distanceInChunks < 8) return { zone: "0-8", detail: "FULL", simulationAllowed: true };
@@ -24,10 +28,12 @@ export class FarViewCore {
     return { zone: "OUT_OF_RANGE", detail: "MINIMAL", simulationAllowed: false };
   }
 
-  public transition(key: string, next: ChunkState, tick: number): void {
+  public transition(key: string, next: ChunkState, tick: number): boolean {
     const previous = this.chunks.get(key);
     if (previous && previous.state === "RELEASED" && next !== "UNKNOWN") throw new Error("Released chunk must be rediscovered from UNKNOWN");
+    if (!previous && this.chunks.size >= this.maxTrackedChunks) return false;
     this.chunks.set(key, { state: next, lastRelevantTick: tick });
+    return true;
   }
 
   public release(key: string, tick: number): void {
@@ -49,6 +55,10 @@ export class FarViewCore {
       }
     }
     return removed;
+  }
+
+  public get trackedCount(): number {
+    return this.chunks.size;
   }
 }
 
