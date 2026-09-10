@@ -3,14 +3,15 @@ import { FarViewCore, type FarViewDecision } from "./core/far-view.js";
 import { BoundedPriorityScheduler, priorityForDistance } from "./core/performance.js";
 import { PlayabilityShield, type GameplayClass } from "./core/playability.js";
 import { AdaptivePerformanceGovernor } from "./core/governor.js";
-import { gameplayPressure, installRuntimeEventWiring, installRuntimeHeartbeat } from "./bedrock/runtime.js";
+import { gameplayPressure, installRuntimeEventWiring, installRuntimeHeartbeat, installRuntimeHarness, samplePlayerPressure } from "./bedrock/runtime.js";
 
-const farView = new FarViewCore();
-const scheduler = new BoundedPriorityScheduler<() => void>({ maxQueue: 256, maxPerWindow: 32 });
+const farView = new FarViewCore(256);
+const scheduler = new BoundedPriorityScheduler<() => void>({ maxQueue: 256, maxPerWindow: 32, maxWorkAgeTicks: 40 });
 const shield = new PlayabilityShield(gameplayPressure);
 const governor = new AdaptivePerformanceGovernor();
 
 installRuntimeEventWiring();
+installRuntimeHarness();
 
 export function scheduleGameplayWork(kind: GameplayClass, key: string, tick: number, payload: () => void): boolean {
   if (shield.shouldDegrade(kind, tick)) return false;
@@ -23,6 +24,7 @@ export function scheduleGameplayWork(kind: GameplayClass, key: string, tick: num
     key,
     priority: shield.priorityFor(kind),
     createdAtTick: tick,
+    expiresAtTick: tick + 40,
     payload,
   };
   return scheduler.enqueue(item);
@@ -33,7 +35,7 @@ function scheduleFarViewPriorityWork(priority: Priority, key: string, tick: numb
   const policy = governor.workloadPolicy();
   if (priority === "FAR" && !policy.allowFar) return false;
   if (priority === "DECORATIVE" && !policy.allowDecorative) return false;
-  return scheduler.enqueue({ key, priority, createdAtTick: tick, payload });
+  return scheduler.enqueue({ key, priority, createdAtTick: tick, expiresAtTick: tick + 40, payload });
 }
 
 export function scheduleFarViewWork(
@@ -57,16 +59,24 @@ export function releaseFarViewWork(key: string, tick: number): void {
 }
 
 installRuntimeHeartbeat(tick => {
+  samplePlayerPressure(tick);
+  farView.reclaimStale(tick, 80);
+  farView.clearReleased();
+
   const gameplay = gameplayPressure.snapshot(tick);
-  const pressure = scheduler.size / 256;
-  const workPressure = scheduler.size === 0 ? 0 : Math.min(1, scheduler.size / 32);
+  const queuePressure = scheduler.size / 256;
+  const budget = governor.workloadPolicy().executionBudget;
+  const started = Date.now();
+  const drained = scheduler.drain(item => item.payload(), budget, tick);
+  const elapsedMs = Math.max(0, Date.now() - started);
+  const workPressure = budget <= 0 ? 0 : Math.min(1, drained / budget);
+  const executionPressure = Math.min(1, elapsedMs / 50);
+
   governor.evaluate({
-    queueRatio: pressure,
-    workRatio: workPressure,
-    memoryRatio: 0,
+    queueRatio: queuePressure,
+    workRatio: Math.max(workPressure, executionPressure),
     localGameplayActive: gameplay.active,
   });
-  scheduler.drain(item => item.payload(), governor.workloadPolicy().executionBudget);
 });
 
 export { farView, scheduler, shield, governor };
