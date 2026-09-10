@@ -67,13 +67,29 @@ export class CooldownResolver {
   public commit(key: string, tick: number, cooldownTicks: number): number {
     this.prune(tick);
     const next = tick + Math.max(0, cooldownTicks);
-    if (!this.readyAt.has(key) && this.readyAt.size >= this.maxEntries) return next;
+    if (!this.readyAt.has(key) && this.readyAt.size >= this.maxEntries) this.evictEarliest();
     this.readyAt.set(key, next);
     return next;
   }
 
   private prune(tick: number): void {
     for (const [key, readyAt] of this.readyAt) if (readyAt <= tick) this.readyAt.delete(key);
+  }
+
+  private evictEarliest(): void {
+    let victim: string | undefined;
+    let earliest = Number.POSITIVE_INFINITY;
+    for (const [key, readyAt] of this.readyAt) {
+      if (readyAt < earliest) {
+        earliest = readyAt;
+        victim = key;
+      }
+    }
+    if (victim !== undefined) this.readyAt.delete(victim);
+  }
+
+  public get size(): number {
+    return this.readyAt.size;
   }
 }
 
@@ -115,6 +131,8 @@ export class UniversalAttackAPI {
   public execute(request: AttackRequest, port: CombatExecutionPort): CombatResult {
     if (!Number.isFinite(request.baseDamage) || request.baseDamage < 0) return this.reject(request, "INVALID_DAMAGE");
     if (!Number.isFinite(request.range) || request.range < 0) return this.reject(request, "INVALID_RANGE");
+    if (!Number.isFinite(request.cooldownTicks) || request.cooldownTicks < 0) return this.reject(request, "INVALID_COOLDOWN");
+    if (!Number.isFinite(request.knockback) || request.knockback < 0) return this.reject(request, "INVALID_KNOCKBACK");
     if (!port.validateTarget(request)) return this.reject(request, "TARGET_INVALID");
 
     const cooldownKey = `${request.attackerId}:${request.weaponId}`;
