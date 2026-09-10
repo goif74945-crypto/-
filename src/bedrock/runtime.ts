@@ -51,6 +51,9 @@ const runtimeErrors: string[] = [];
 let projectileEventsAccepted = 0;
 let duplicateProjectileEventsRejected = 0;
 let combatObserver: ((request: AttackRequest) => void) | undefined;
+let runtimeWiringInstalled = false;
+let runtimeHeartbeatInstalled = false;
+let runtimeHarnessInstalled = false;
 
 function rememberEntity(entity: Entity | undefined): void {
   if (!entity?.id || !entity.isValid) return;
@@ -58,7 +61,7 @@ function rememberEntity(entity: Entity | undefined): void {
   trackedEntities.set(entity.id, entity);
 }
 function pruneTrackedEntities(): void { for (const [id, entity] of trackedEntities) if (!entity.isValid) trackedEntities.delete(id); }
-function recordRuntimeError(error: unknown): void { const message = error instanceof Error ? error.message : String(error); if (runtimeErrors.length >= MAX_RUNTIME_ERRORS) runtimeErrors.shift(); runtimeErrors.push(message.slice(0,240)); }
+export function recordRuntimeError(error: unknown): void { const message = error instanceof Error ? error.message : String(error); if (runtimeErrors.length >= MAX_RUNTIME_ERRORS) runtimeErrors.shift(); runtimeErrors.push(message.slice(0,240)); }
 function rememberProjectileEvent(projectileId: string, targetId: string, tick: number): boolean {
   const key = `${projectileId}:${targetId}`;
   if (projectileKeys.has(key)) { duplicateProjectileEventsRejected++; return false; }
@@ -96,6 +99,7 @@ function observeCombat(attacker: Entity|undefined,target: Entity|undefined,damag
 }
 
 export function installRuntimeEventWiring(): void {
+  if (runtimeWiringInstalled) return;
   world.afterEvents.playerSpawn.subscribe(event=>rememberEntity(event.player));
   world.afterEvents.playerButtonInput.subscribe(event=>{rememberEntity(event.player);mark("INPUT");mark("MOVEMENT");});
   world.afterEvents.playerSwingStart.subscribe(event=>{rememberEntity(event.player);mark("COMBAT");});
@@ -113,11 +117,43 @@ export function installRuntimeEventWiring(): void {
   world.afterEvents.projectileHitBlock.subscribe(event=>{rememberEntity(event.source);rememberProjectileEvent(event.projectile.id,`block:${event.dimension.id}:${event.location.x}:${event.location.y}:${event.location.z}`,system.currentTick);mark("PROJECTILE");});
   world.afterEvents.entityDie.subscribe(event=>{rememberEntity(event.deadEntity);mark("IMPORTANT_EVENT");});
   world.afterEvents.leverAction.subscribe(()=>mark("REDSTONE")); world.afterEvents.pistonActivate.subscribe(()=>mark("REDSTONE")); world.afterEvents.pressurePlatePush.subscribe(()=>mark("REDSTONE"));
+  runtimeWiringInstalled = true;
 }
 function isBossEntity(entity:Entity):boolean{return entity.typeId==="minecraft:ender_dragon"||entity.typeId==="minecraft:wither"||entity.typeId==="minecraft:warden"||entity.typeId==="minecraft:elder_guardian";}
 
+function isEarlierThanBlockHit(attacker: Entity, blockHit: { block: { location: Vector3 }; faceLocation: Vector3 }, entityDistance: number): boolean {
+  try {
+    const origin = attacker.getHeadLocation();
+    const block = blockHit.block.location;
+    const face = blockHit.faceLocation;
+    const hitPoint = { x: block.x + face.x, y: block.y + face.y, z: block.z + face.z };
+    const blockDistance = Math.hypot(hitPoint.x - origin.x, hitPoint.y - origin.y, hitPoint.z - origin.z);
+    return Number.isFinite(blockDistance) && blockDistance + 1e-6 < entityDistance;
+  } catch (error) {
+    recordRuntimeError(error);
+    return true;
+  }
+}
+
 export class BedrockCombatPort implements CombatExecutionPort {
-  public resolveTarget(request:AttackRequest):ResolvedCombatTarget|undefined{pruneTrackedEntities();const attacker=trackedEntities.get(request.attackerId);const direct=trackedEntities.get(request.targetId);if(!attacker?.isValid||!direct?.isValid)return undefined;try{if(attacker.dimension.id!==direct.dimension.id)return undefined;const hits=attacker.getEntitiesFromViewDirection({maxDistance:request.range});const hit=hits.find(candidate=>candidate.entity.id===request.targetId);if(!hit?.entity?.isValid)return undefined;rememberEntity(hit.entity);return{id:hit.entity.id,entity:hit.entity,distance:hit.distance};}catch(error){recordRuntimeError(error);return undefined;}}
+  public resolveTarget(request:AttackRequest):ResolvedCombatTarget|undefined{
+    pruneTrackedEntities();
+    const attacker=trackedEntities.get(request.attackerId);
+    const direct=trackedEntities.get(request.targetId);
+    if(!attacker?.isValid||!direct?.isValid)return undefined;
+    try{
+      if(attacker.dimension.id!==direct.dimension.id)return undefined;
+      const hits=attacker.getEntitiesFromViewDirection({maxDistance:request.range})
+        .filter(candidate=>candidate.entity?.isValid&&Number.isFinite(candidate.distance))
+        .sort((a,b)=>a.distance-b.distance||a.entity.id.localeCompare(b.entity.id));
+      const first=hits[0];
+      if(!first?.entity?.isValid||first.entity.id!==request.targetId)return undefined;
+      const blockHit=attacker.getBlockFromViewDirection({maxDistance:request.range,includePassableBlocks:false,includeLiquidBlocks:false});
+      if(blockHit && isEarlierThanBlockHit(attacker,blockHit,first.distance))return undefined;
+      rememberEntity(first.entity);
+      return{id:first.entity.id,entity:first.entity,distance:first.distance};
+    }catch(error){recordRuntimeError(error);return undefined;}
+  }
   public mitigateArmorDamage(target:ResolvedCombatTarget,_request:AttackRequest,incomingDamage:number):number{const equippable=(target.entity as Entity).getComponent(EntityComponentTypes.Equippable);if(!equippable)throw new Error("ARMOR_COMPONENT_UNAVAILABLE");const armor=Math.max(0,Math.min(100,equippable.totalArmor));const toughness=Math.max(0,Math.min(100,equippable.totalToughness));const reduction=Math.min(0.8,armor*0.04+toughness*0.01);return Math.max(0,incomingDamage*(1-reduction));}
   public mitigateResistanceDamage(target:ResolvedCombatTarget,_request:AttackRequest,incomingDamage:number):number{const resistance=(target.entity as Entity).getEffect("resistance");if(!resistance)return incomingDamage;const reduction=Math.min(0.8,0.2*(resistance.amplifier+1));return Math.max(0,incomingDamage*(1-reduction));}
   public commit(_request:AttackRequest,_target:ResolvedCombatTarget,_plan:CombatCommitPlan):CombatCommitResult{return{committed:false,effectStatuses:[],durabilityStatus:"NOT_VERIFIED",projectileStatus:"NOT_VERIFIED",deathStatus:"NOT_VERIFIED",lootStatus:"NOT_VERIFIED",xpStatus:"NOT_VERIFIED"};}
@@ -127,6 +163,6 @@ export class BedrockCombatPort implements CombatExecutionPort {
 }
 export function trackedEntityCount():number{pruneTrackedEntities();return trackedEntities.size;}
 
-export function probeRuntime(player:Player):RuntimeProbeResult{const checks:Record<string,RuntimeEvidenceStatus>={};try{checks["player.valid"]=player.isValid?"PASS":"FAIL";checks["system.currentTick"]=Number.isInteger(system.currentTick)?"PASS":"FAIL";const id=system.run(()=>undefined);system.clearRun(id);checks["system.run+clearRun"]="PASS";const direction=player.getViewDirection();checks["player.getViewDirection"]=Number.isFinite(direction.x)&&Number.isFinite(direction.y)&&Number.isFinite(direction.z)?"PASS":"FAIL";checks["player.clientSystemInfo.maxRenderDistance"]=Number.isFinite(player.clientSystemInfo.maxRenderDistance)?"PASS":"NOT_AVAILABLE";checks["player.camera"]=player.camera.isValid?"PASS":"FAIL";checks["player.equippable"]=player.getComponent(EntityComponentTypes.Equippable)?"PASS":"NOT_AVAILABLE";checks["player.inventory"]=player.getComponent(EntityComponentTypes.Inventory)?"PASS":"NOT_AVAILABLE";player.getEffect("resistance");checks["entity.getEffect"]="PASS";const projectileCallback=()=>undefined;world.afterEvents.projectileHitEntity.subscribe(projectileCallback);world.afterEvents.projectileHitEntity.unsubscribe(projectileCallback);const deathCallback=()=>undefined;world.afterEvents.entityDie.subscribe(deathCallback);world.afterEvents.entityDie.unsubscribe(deathCallback);checks["event.projectileHitEntity.binding"]="PASS";checks["event.entityDie.binding"]="PASS";}catch(error){recordRuntimeError(error);checks["runtime.probe"]="FAIL";}return{tick:system.currentTick,checks,client:readClientCapabilities(player)};}
-export function installRuntimeHeartbeat(onTick:(tick:number)=>void):void{system.runInterval(()=>{const tick=system.currentTick;samplePlayerPressure(tick);onTick(tick);},5);}
-export function installRuntimeHarness():void{const probedPlayers=new Set<string>();world.afterEvents.playerSpawn.subscribe(event=>{if(probedPlayers.has(event.player.id)||probedPlayers.size>=32)return;probedPlayers.add(event.player.id);event.player.sendMessage(`NEXY_RUNTIME_EVIDENCE ${JSON.stringify(probeRuntime(event.player))}`);});}
+export function probeRuntime(player:Player):RuntimeProbeResult{const checks:Record<string,RuntimeEvidenceStatus>={};try{checks["player.valid"]=player.isValid?"PASS":"FAIL";checks["system.currentTick"]=Number.isInteger(system.currentTick)?"PASS":"FAIL";const id=system.run(()=>undefined);system.clearRun(id);checks["system.run+clearRun"]="PASS";const direction=player.getViewDirection();checks["player.getViewDirection"]=Number.isFinite(direction.x)&&Number.isFinite(direction.y)&&Number.isFinite(direction.z)?"PASS":"FAIL";checks["player.clientSystemInfo.maxRenderDistance"]=Number.isFinite(player.clientSystemInfo.maxRenderDistance)?"PASS":"NOT_AVAILABLE";checks["player.camera"]=player.camera.isValid?"PASS":"FAIL";checks["player.equippable"]=player.getComponent(EntityComponentTypes.Equippable)?"PASS":"NOT_AVAILABLE";checks["player.inventory"]=player.getComponent(EntityComponentTypes.Inventory)?"PASS":"NOT_AVAILABLE";player.getEffect("resistance");checks["entity.getEffect"]="PASS";const projectileCallback=()=>undefined;world.afterEvents.projectileHitEntity.subscribe(projectileCallback);world.afterEvents.projectileHitEntity.unsubscribe(projectileCallback);const deathCallback=()=>undefined;world.afterEvents.entityDie.subscribe(deathCallback);world.afterEvents.entityDie.unsubscribe(deathCallback);const beforeHurtCallback=()=>undefined;world.beforeEvents.entityHurt.subscribe(beforeHurtCallback);world.beforeEvents.entityHurt.unsubscribe(beforeHurtCallback);checks["event.projectileHitEntity.binding"]="PASS";checks["event.entityDie.binding"]="PASS";checks["event.entityHurtBefore.binding"]="PASS";}catch(error){recordRuntimeError(error);checks["runtime.probe"]="FAIL";}return{tick:system.currentTick,checks,client:readClientCapabilities(player)};}
+export function installRuntimeHeartbeat(onTick:(tick:number)=>void):void{if(runtimeHeartbeatInstalled)return;runtimeHeartbeatInstalled=true;system.runInterval(()=>{const tick=system.currentTick;samplePlayerPressure(tick);onTick(tick);},5);}
+export function installRuntimeHarness():void{if(runtimeHarnessInstalled)return;runtimeHarnessInstalled=true;const probedPlayers=new Set<string>();world.afterEvents.playerSpawn.subscribe(event=>{if(probedPlayers.has(event.player.id)||probedPlayers.size>=32)return;probedPlayers.add(event.player.id);event.player.sendMessage(`NEXY_RUNTIME_EVIDENCE ${JSON.stringify(probeRuntime(event.player))}`);});}
