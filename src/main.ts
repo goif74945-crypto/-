@@ -1,6 +1,6 @@
-import type { WorkItem } from "./core/types.js";
+import type { WorkItem, Priority } from "./core/types.js";
 import { FarViewCore, type FarViewDecision } from "./core/far-view.js";
-import { BoundedPriorityScheduler } from "./core/performance.js";
+import { BoundedPriorityScheduler, priorityForDistance } from "./core/performance.js";
 import { PlayabilityShield, type GameplayClass } from "./core/playability.js";
 import { AdaptivePerformanceGovernor } from "./core/governor.js";
 import { gameplayPressure, installRuntimeEventWiring, installRuntimeHeartbeat } from "./bedrock/runtime.js";
@@ -28,6 +28,14 @@ export function scheduleGameplayWork(kind: GameplayClass, key: string, tick: num
   return scheduler.enqueue(item);
 }
 
+function scheduleFarViewPriorityWork(priority: Priority, key: string, tick: number, payload: () => void): boolean {
+  if (shield.shouldDegrade("FAR", tick)) return false;
+  const policy = governor.workloadPolicy();
+  if (priority === "FAR" && !policy.allowFar) return false;
+  if (priority === "DECORATIVE" && !policy.allowDecorative) return false;
+  return scheduler.enqueue({ key, priority, createdAtTick: tick, payload });
+}
+
 export function scheduleFarViewWork(
   distanceInChunks: number,
   key: string,
@@ -35,8 +43,8 @@ export function scheduleFarViewWork(
   payload: () => void,
 ): FarViewDecision {
   const decision = farView.observeDistance(key, distanceInChunks, tick);
-  const kind: GameplayClass = decision.zone === "64-100" || decision.zone === "32-64" ? "FAR" : decision.zone === "OUT_OF_RANGE" ? "DECORATIVE" : "IMPORTANT_EVENT";
-  if (!scheduleGameplayWork(kind, key, tick, payload)) {
+  const priority = priorityForDistance(decision.zone);
+  if (!scheduleFarViewPriorityWork(priority, key, tick, payload)) {
     farView.release(key, tick);
   }
   return decision;

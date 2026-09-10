@@ -87,6 +87,10 @@ export class BoundedPriorityScheduler<T> {
     return { ...this.statsValue };
   }
 
+  public peekPriority(key: string): Priority | undefined {
+    return this.queue.get(key)?.priority;
+  }
+
   private findLowestPriorityKey(): string | undefined {
     let candidate: WorkItem<T> | undefined;
     for (const item of this.queue.values()) {

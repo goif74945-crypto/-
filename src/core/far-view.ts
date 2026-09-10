@@ -15,7 +15,7 @@ const NEXT_STATES: Record<ChunkState, readonly ChunkState[]> = {
   UNKNOWN: ["DISCOVERED"],
   DISCOVERED: ["VISIBLE", "FAR", "RELEASED"],
   VISIBLE: ["FAR", "RELEASED"],
-  FAR: ["RELEASED"],
+  FAR: ["VISIBLE", "RELEASED"],
   RELEASED: ["UNKNOWN"],
 };
 
@@ -43,7 +43,7 @@ export class FarViewCore {
       return decision;
     }
 
-    const targetState: ChunkState = decision.zone === "64-100" ? "FAR" : decision.zone === "32-64" ? "FAR" : "VISIBLE";
+    const targetState: ChunkState = decision.zone === "32-64" || decision.zone === "64-100" ? "FAR" : "VISIBLE";
     const current = this.chunks.get(key)?.state;
     if (current === undefined) {
       if (!this.transition(key, "DISCOVERED", tick)) return decision;

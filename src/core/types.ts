@@ -22,6 +22,12 @@ export interface CombatModifier {
   readonly multiplier: number;
 }
 
+export interface CombatEffect {
+  readonly id: string;
+  readonly durationTicks: number;
+  readonly amplifier: number;
+}
+
 export interface AttackRequest {
   readonly attackerId: string;
   readonly weaponId: string;
@@ -35,17 +41,28 @@ export interface AttackRequest {
   readonly knockback: number;
   readonly durabilityCost: number;
   readonly modifiers: readonly CombatModifier[];
+  readonly effects: readonly CombatEffect[];
   readonly tick: number;
 }
 
 export interface CombatResult {
   readonly accepted: boolean;
   readonly reason?: string;
+  readonly baseDamage: number;
+  readonly modifiedDamage: number;
   readonly finalDamage: number;
   readonly critical: boolean;
   readonly knockback: Vec3;
   readonly cooldownReadyAt: number;
   readonly durabilityCost: number;
+  readonly armorStatus: "VERIFIED" | "NOT_VERIFIED" | "NOT_APPLICABLE" | "FAILED";
+  readonly resistanceStatus: "VERIFIED" | "NOT_VERIFIED" | "NOT_APPLICABLE" | "FAILED";
+  readonly effectStatuses: readonly ("VERIFIED" | "NOT_VERIFIED" | "NOT_APPLICABLE" | "FAILED")[];
+  readonly durabilityStatus: "VERIFIED" | "NOT_VERIFIED" | "NOT_APPLICABLE" | "FAILED";
+  readonly projectileStatus: "VERIFIED" | "NOT_VERIFIED" | "NOT_APPLICABLE" | "FAILED";
+  readonly deathStatus: "VERIFIED" | "NOT_VERIFIED" | "NOT_APPLICABLE" | "FAILED";
+  readonly lootStatus: "VERIFIED" | "NOT_VERIFIED" | "NOT_APPLICABLE" | "FAILED";
+  readonly xpStatus: "VERIFIED" | "NOT_VERIFIED" | "NOT_APPLICABLE" | "FAILED";
 }
 
 export interface WorkItem<T> {
