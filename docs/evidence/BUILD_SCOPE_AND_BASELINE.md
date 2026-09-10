@@ -215,3 +215,43 @@ Implementation state: NOT IMPLEMENTED.
 Final state: NOT COMPLETE.
 
 The next controlled action must begin from the current head above. Any attempt to implement an unsupported API capability, claim 100 real rendered chunks, or claim Java parity without evidence must trigger FREEZE rather than a speculative implementation.
+
+## 13. Phase 2 Architecture Record
+
+Phase 2 architecture was created at:
+`docs/evidence/PHASE_2_ARCHITECTURE.md`
+
+Architecture commit: `64dd7ea0f924537e05cfabd87db7f5d74ec985fe`
+
+The architecture defines the required FAR VIEW CORE, PERFORMANCE CORE, PLAYABILITY SHIELD, and JAVA-LIKE GAMEPLAY CORE boundaries; data/control flows; dependency rules; API capability matrix; finite queue/cache/task contracts; priority model; adaptive governor; Universal Attack API; projectile/entity/AI/item/block/status/loot/XP/world-mechanics boundaries; unsupported capabilities; blockers; Phase 3 entry conditions; and evidence matrix.
+
+The architecture does NOT create implementation source and does NOT claim runtime, performance, visual, mobile, parity, exact API-version binding, or 100-real-rendered-chunk PASS.
+
+Phase 2 capability decisions remain:
+- documented scheduler/query/damage/knockback/event/projectile API surfaces: supported at API-surface level only; target-product runtime compatibility remains unverified;
+- exact `@minecraft/server` binding for Bedrock 26.45: NOT VERIFIED;
+- 100 real rendered chunks through Add-on APIs: NOT VERIFIED;
+- full Java-like parity: NOT VERIFIED;
+- runtime/performance/visual/mobile/parity evidence: NOT VERIFIED.
+
+### Phase 2 file-scope record
+
+Created:
+- `docs/evidence/PHASE_2_ARCHITECTURE.md`
+
+Modified:
+- `docs/evidence/BUILD_SCOPE_AND_BASELINE.md` (this evidence record)
+
+Not created:
+- `manifest.json`
+- `package.json`
+- `src/*`
+- `scripts/*`
+- addon runtime implementation
+- gameplay implementation
+- far-view runtime
+- performance runtime
+- implementation tests
+- release artifacts
+
+Phase 2 remains `PARTIAL / CONTROLLED`. The existence of the architecture document is not sufficient to declare Phase 2 or the project complete.
