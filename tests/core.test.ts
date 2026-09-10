@@ -61,7 +61,7 @@ test("far-view stale reclamation and bounded history work", () => {
   for(let tick=83;tick<=100;tick++) core.observeDistance("a",tick%2===0?70:20,tick); assert.ok(core.getTransitionHistory("a").length<=8);
 });
 
-test("far-view render capability reports engine limit instead of simulating rendering", () => { const core=new FarViewCore(); assert.equal(core.renderCapability(32,64).capability,"ENGINE_SUPPORTED"); assert.equal(core.renderCapability(100,64).capability,"ENGINE_LIMITED"); assert.equal(core.renderCapability(100,null).capability,"ENGINE_LIMITED"); assert.equal(core.renderCapability(Number.NaN,64).capability,"NOT_IMPLEMENTABLE"); });
+test("far-view render capability is limited to a client-configured upper bound", () => { const core=new FarViewCore(); assert.equal(core.renderCapability(32,64).capability,"CLIENT_LIMIT_ALLOWS_REQUEST"); assert.equal(core.renderCapability(100,64).capability,"CLIENT_LIMIT_UNKNOWN"); assert.equal(core.renderCapability(100,null).capability,"CLIENT_LIMIT_UNKNOWN"); assert.equal(core.renderCapability(Number.NaN,64).capability,"NOT_IMPLEMENTABLE"); });
 
 test("distance zones map to one authoritative scheduler priority mapping", () => { assert.equal(priorityForDistance("0-8"),"CRITICAL"); assert.equal(priorityForDistance("8-16"),"NEAR"); assert.equal(priorityForDistance("16-32"),"IMPORTANT"); assert.equal(priorityForDistance("32-64"),"MID"); assert.equal(priorityForDistance("64-100"),"FAR"); });
 
