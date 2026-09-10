@@ -34,8 +34,8 @@ export function scheduleFarViewWork(
   tick: number,
   payload: () => void,
 ): FarViewDecision {
-  const decision = farView.classifyChunkDistance(distanceInChunks);
-  const kind: GameplayClass = decision.zone === "64-100" ? "FAR" : decision.zone === "OUT_OF_RANGE" ? "DECORATIVE" : "IMPORTANT_EVENT";
+  const decision = farView.observeDistance(key, distanceInChunks, tick);
+  const kind: GameplayClass = decision.zone === "64-100" || decision.zone === "32-64" ? "FAR" : decision.zone === "OUT_OF_RANGE" ? "DECORATIVE" : "IMPORTANT_EVENT";
   if (!scheduleGameplayWork(kind, key, tick, payload)) {
     farView.release(key, tick);
   }
