@@ -69,5 +69,6 @@ export interface WorkItem<T> {
   readonly key: string;
   readonly priority: Priority;
   readonly createdAtTick: number;
+  readonly expiresAtTick?: number;
   readonly payload: T;
 }
