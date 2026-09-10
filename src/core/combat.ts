@@ -181,27 +181,29 @@ export class UniversalAttackAPI {
     if (blockedUntil !== null) return this.reject(request, "COOLDOWN", blockedUntil);
 
     const critical = this.critical.resolve(request.criticalEligible, request.baseDamage);
-    const modifiedDamage = this.damage.resolve(critical.damage, request.modifiers);
-    if (!Number.isFinite(modifiedDamage) || modifiedDamage < 0) return this.reject(request, "DAMAGE_INVALID");
+    if (!Number.isFinite(critical.damage) || critical.damage < 0) return this.reject(request, "CRITICAL_DAMAGE_INVALID");
 
-    let postArmorDamage = modifiedDamage;
+    let postArmorDamage = critical.damage;
     let armorStatus: CombatStageStatus = "NOT_VERIFIED";
     if (port.mitigateArmorDamage) {
-      const result = safeNumberStage(() => port.mitigateArmorDamage!(target, request, modifiedDamage));
+      const result = safeNumberStage(() => port.mitigateArmorDamage!(target, request, postArmorDamage));
       if (result.status === "FAILED") return this.reject(request, "ARMOR_FAILED");
       postArmorDamage = result.value;
       armorStatus = "VERIFIED";
     } else return this.reject(request, "ARMOR_CAPABILITY_UNVERIFIED");
 
-    let finalDamage = postArmorDamage;
+    let postResistanceDamage = postArmorDamage;
     let resistanceStatus: CombatStageStatus = "NOT_VERIFIED";
     if (port.mitigateResistanceDamage) {
       const result = safeNumberStage(() => port.mitigateResistanceDamage!(target, request, postArmorDamage));
       if (result.status === "FAILED") return this.reject(request, "RESISTANCE_FAILED");
-      finalDamage = result.value;
+      postResistanceDamage = result.value;
       resistanceStatus = "VERIFIED";
     } else return this.reject(request, "RESISTANCE_CAPABILITY_UNVERIFIED");
-    if (!Number.isFinite(finalDamage) || finalDamage < 0) return this.reject(request, "FINAL_DAMAGE_INVALID");
+
+    const modifiedDamage = this.damage.resolve(postResistanceDamage, request.modifiers);
+    if (!Number.isFinite(modifiedDamage) || modifiedDamage < 0) return this.reject(request, "DAMAGE_INVALID");
+    const finalDamage = modifiedDamage;
 
     const impulse = this.knockback.resolve(request.direction, request.knockback);
     const projectileStatus: CombatStageStatus = (request.attackType === "PROJECTILE" || request.attackType === "RANGED") ? "NOT_VERIFIED" : "NOT_APPLICABLE";
@@ -292,7 +294,6 @@ export class UniversalAttackAPI {
       critical: false,
       knockback: { x: 0, y: 0, z: 0 },
       cooldownReadyAt: request.tick,
-      durabilityCost: 0,
       armorStatus: "NOT_VERIFIED",
       resistanceStatus: "NOT_VERIFIED",
       effectStatuses: commit.effectStatuses,
