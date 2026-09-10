@@ -1,12 +1,14 @@
 {
   "name": "nexy-farview-100",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "node --test dist/tests/core.test.js",
-    "check": "npm run build && npm test"
+    "package:addon": "npm run build && node tools/package-addon.mjs",
+    "check": "npm run build && npm test",
+    "check:addon": "npm run package:addon && test -f addon/manifest.json && test -f addon/scripts/main.js"
   },
   "dependencies": {
     "@minecraft/server": "2.9.0"
