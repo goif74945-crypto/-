@@ -16,3 +16,9 @@ jobs:
       - run: npm install --ignore-scripts
       - run: npm run check
       - run: npm run check:addon
+      - name: Upload distributable addon
+        uses: actions/upload-artifact@v4
+        with:
+          name: NEXY_FARVIEW_100-mcaddon
+          path: NEXY_FARVIEW_100.mcaddon
+          if-no-files-found: error
