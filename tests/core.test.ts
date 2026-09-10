@@ -21,9 +21,7 @@ import {
   type WeaponDefinition,
 } from "../src/core/combat.js";
 
-const weapon = (id: string, attackType: WeaponDefinition["attackType"], overrides: Partial<WeaponDefinition> = {}): WeaponDefinition => ({
-  id, attackType, baseDamage: 10, range: 3, cooldownTicks: 5, knockback: 2, durabilityCost: 1, ...overrides,
-});
+const weapon = (id: string, attackType: WeaponDefinition["attackType"], overrides: Partial<WeaponDefinition> = {}): WeaponDefinition => ({ id, attackType, baseDamage: 10, range: 3, cooldownTicks: 5, knockback: 2, durabilityCost: 1, ...overrides });
 const context = { attackerId: "a", targetId: "t", direction: { x: 1, y: 0, z: 0 }, tick: 10, criticalEligible: false };
 const fullPort = (calls: string[] = [], targetDistance = 2): CombatExecutionPort => ({
   resolveTarget: () => { calls.push("resolve"); return { id: "t", entity: {}, distance: targetDistance }; },
@@ -83,7 +81,7 @@ test("far-view stale reclamation and bounded history work", () => {
   assert.equal(core.getState("b"), "VISIBLE");
   assert.equal(core.reclaimStale(82, 79), 1);
   assert.equal(core.getState("b"), "RELEASED");
-  for (let tick = 3; tick <= 20; tick++) core.observeDistance("a", tick % 2 === 0 ? 70 : 20, tick);
+  for (let tick = 83; tick <= 100; tick++) core.observeDistance("a", tick % 2 === 0 ? 70 : 20, tick);
   assert.ok(core.getTransitionHistory("a").length <= 8);
 });
 
@@ -145,8 +143,18 @@ test("scheduler cancellation and stale rejection work under pressure", () => {
   assert.ok(scheduler.stats().staleRejected >= 1);
 });
 
+test("scheduler contains handler exceptions and exposes failure metrics", () => {
+  const scheduler = new BoundedPriorityScheduler<number>({ maxQueue: 4, maxPerWindow: 2 });
+  scheduler.enqueue({ key: "bad", priority: "CRITICAL", createdAtTick: 1, payload: 1 });
+  scheduler.enqueue({ key: "good", priority: "NEAR", createdAtTick: 1, payload: 2 });
+  assert.equal(scheduler.drain(item => { if (item.key === "bad") throw new Error("boom"); }, 2, 1), 2);
+  assert.equal(scheduler.stats().failed, 1);
+  assert.equal(scheduler.stats().executed, 1);
+  assert.equal(scheduler.size, 0);
+});
+
 test("continuous critical work dominates lower priority work without queue explosion", () => {
-  const scheduler = new BoundedPriorityScheduler<number>({ maxQueue: 32, maxPerWindow: 1 });
+  const scheduler = new BoundedPriorityScheduler<number>({ maxQueue: 32, maxPerWindow: 1, maxWorkAgeTicks: 200 });
   for (let tick = 0; tick < 100; tick++) {
     scheduler.enqueue({ key: `critical-${tick}`, priority: "CRITICAL", createdAtTick: tick, payload: tick });
     scheduler.enqueue({ key: `low-${tick}`, priority: "DECORATIVE", createdAtTick: tick, payload: tick });
