@@ -10,12 +10,7 @@ Target: Minecraft Bedrock 26.45 ONLY
 
 ## CURRENT IMPLEMENTATION
 
-Implementation fix commit: `86010aa9292ab718531a9c8fc25d9536f284b804`.
-Changed source/test files:
-- `src/core/far-view.ts`
-- `src/core/performance.ts`
-- `src/core/combat.ts`
-- `tests/core.test.ts`
+Current blocker-closure source is present in `src/core/far-view.ts`, `src/core/performance.ts`, and `src/core/combat.ts`; regression coverage is in `tests/core.test.ts`.
 
 Only evidence report:
 `docs/evidence/PROJECT_EVIDENCE_REPORT.md`
@@ -24,7 +19,7 @@ Only evidence report:
 
 STATIC: VERIFIED
 
-Direct `DISCOVERED -> FAR` is rejected. A first distant observation traverses `DISCOVERED -> VISIBLE -> FAR`. Recovery permits `FAR -> VISIBLE`. Release remains `VISIBLE/FAR -> RELEASED`.
+`DISCOVERED -> FAR` is rejected. A first distant observation traverses `DISCOVERED -> VISIBLE -> FAR`. Recovery permits `FAR -> VISIBLE`. Release remains `VISIBLE/FAR -> RELEASED`.
 
 TEST: NOT VERIFIED
 RUNTIME: NOT VERIFIED
@@ -35,9 +30,9 @@ STATIC: VERIFIED
 
 Visual zones: `0-8 FULL`, `8-16 HIGH`, `16-32 MEDIUM`, `32-64 LOW`, `64-100 MINIMAL/FAR`.
 
-Scheduler priority: `0-8 CRITICAL`, `8-16 NEAR`, `16-32 IMPORTANT`, `32-64 MID`, `64-100 FAR`.
+Scheduler priorities: `0-8 CRITICAL`, `8-16 NEAR`, `16-32 IMPORTANT`, `32-64 MID`, `64-100 FAR`.
 
-`src/main.ts` uses the single `priorityForDistance()` mapping. Tests cover exact boundaries plus invalid/negative/NaN/Infinity inputs and queued priority.
+`src/main.ts` uses the single `priorityForDistance()` mapping. Exact boundary and invalid-distance regression tests are present.
 
 TEST: NOT VERIFIED
 RUNTIME: NOT VERIFIED
@@ -46,14 +41,14 @@ RUNTIME: NOT VERIFIED
 
 STATIC: PARTIAL
 
-Central pipeline validates weapon registration, target identity, range/hit, cooldown and attack type; computes critical/base/modified/final damage; then routes through independent armor/resistance, damage, knockback, effect, durability, projectile and death/loot/XP status stages.
+Central pipeline: weapon -> adapter -> request -> weapon validation -> target validation -> range/hit -> cooldown -> attack type -> critical -> base damage -> modified damage -> independent armor -> independent resistance -> final damage -> damage -> knockback -> effects -> durability -> projectile result -> death/loot/XP status -> result.
 
-Required adapters: `SwordAdapter`, `AxeAdapter`, `SpearAdapter`, `BowAdapter`, `CustomWeaponAdapter`.
-Required attack types: `MELEE`, `HEAVY_MELEE`, `THRUST`, `SWEEP`, `RANGED`, `PROJECTILE`, `SPECIAL`.
+Five adapters: `SwordAdapter`, `AxeAdapter`, `SpearAdapter`, `BowAdapter`, `CustomWeaponAdapter`.
+Seven attack types: `MELEE`, `HEAVY_MELEE`, `THRUST`, `SWEEP`, `RANGED`, `PROJECTILE`, `SPECIAL`.
 
-Armor and resistance use independent hooks and independent statuses. Unsupported runtime capabilities remain `NOT_VERIFIED`; no guessed API was added.
+`baseDamage`, `modifiedDamage`, and `finalDamage` remain distinct. Armor and resistance have independent hooks/statuses; one generic callback cannot mark both VERIFIED.
 
-The Bedrock runtime source itself currently executes only bounded entity tracking, local view-direction target lookup, `Entity.applyDamage`, and `Entity.applyImpulse`. Full gameplay parity is therefore NOT VERIFIED.
+The runtime port currently exposes bounded entity tracking, local target resolution, `Entity.applyDamage`, and `Entity.applyImpulse`. Armor, resistance, effects, durability, projectile result, death, loot and XP remain NOT VERIFIED at Bedrock 26.45 runtime level. No unsupported API was invented.
 
 TEST: NOT VERIFIED
 RUNTIME: NOT VERIFIED
@@ -63,35 +58,43 @@ JAVA-LIKE PARITY: NOT VERIFIED
 
 STATIC: PARTIAL
 
-Event-fed pressure remains connected to workload admission for protected gameplay classes. CAMERA automatic sensing and BOSS automatic detection are NOT VERIFIED.
+Event-fed gameplay pressure remains connected to workload admission. CAMERA automatic sensing: NOT VERIFIED. BOSS automatic detection: NOT VERIFIED.
 
 ## GOVERNOR / PERFORMANCE
 
 STATIC: PARTIAL
 
-Governor controls FAR/DECORATIVE admission and execution budget. Scheduler is bounded and priority ordered. No committed global `dimension.getEntities()` attack scan exists.
+Governor controls FAR/DECORATIVE admission and scheduler execution budget. Scheduler remains bounded and priority ordered. No committed global `dimension.getEntities()` attack scan exists.
 
 Measured FPS/TPS/memory/thermal performance: NOT VERIFIED.
 
-## API — BEDROCK 26.45
+## BEDROCK 26.45 API
 
 Dependency: `@minecraft/server` `2.9.0`.
 
-Microsoft documents 2.9.0 as stable in Minecraft 1.26.40 and explains that Script API module versions are distinct from Minecraft product versions. Exact Bedrock 26.45 runtime compatibility therefore remains NOT VERIFIED. citeturn703287search1turn703287search3turn703287search6
+Microsoft documents 2.9.0 as stable in Minecraft 1.26.40 and explains that Script API module versions are distinct from Minecraft product versions. Exact 26.45 runtime compatibility is therefore NOT VERIFIED by the dependency declaration alone. citeturn703287search1turn703287search3turn703287search6
 
 Critical used APIs include scheduling, player/block/item/entity events, `Entity.getEntitiesFromViewDirection`, `Entity.applyDamage`, and `Entity.applyImpulse`.
+
+Exact Bedrock 26.45 execution evidence: NOT VERIFIED.
 
 ## TEST / BUILD / PACKAGE
 
 Configured commands:
-`npm install --ignore-scripts`, `npm run build`, `npm test`, `npm run check`, `npm run package:addon`, `npm run check:addon`.
+- `npm install --ignore-scripts`
+- `npm run build`
+- `npm test`
+- `npm run check`
+- `npm run package:addon`
+- `npm run check:addon`
 
-Latest observed CI before the current code fix: install SUCCESS; `npm run check` FAILED with three TypeScript errors in combat, performance, and tests; addon check was skipped. Those three compiler errors were corrected in the current implementation commit.
+Last confirmed CI failure before this source repair was on commit `5ec43d3ded9c6892a347ac1ac64ae0a163f39355`:
+- `npm install --ignore-scripts`: SUCCESS; 6 packages added; 0 vulnerabilities.
+- `npm run check`: FAILED, exit code 2.
+- Compiler errors were fixed in the blocker-closure source.
+- `npm run check:addon`: SKIPPED after failed `check`.
 
-Current implementation commit CI: NOT VERIFIED until its new Actions run completes.
-BUILD: NOT VERIFIED
-TEST: NOT VERIFIED
-PACKAGE ARTIFACT: NOT VERIFIED
+A new push-triggered verification is required for the current source. Current build/test/package proof: NOT VERIFIED.
 
 ## RUNTIME / PERFORMANCE / VISUAL / MOBILE / MULTIPLAYER
 
