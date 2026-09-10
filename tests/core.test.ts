@@ -20,14 +20,11 @@ import {
   type WeaponAdapter,
   type WeaponDefinition,
 } from "../src/core/combat.js";
-import type { WorkItem } from "../src/core/types.js";
 
 const weapon = (id: string, attackType: WeaponDefinition["attackType"], overrides: Partial<WeaponDefinition> = {}): WeaponDefinition => ({
   id, attackType, baseDamage: 10, range: 3, cooldownTicks: 5, knockback: 2, durabilityCost: 1, ...overrides,
 });
-
 const context = { attackerId: "a", targetId: "t", direction: { x: 1, y: 0, z: 0 }, tick: 10, criticalEligible: false };
-
 const fullPort = (calls: string[] = [], targetDistance = 2): CombatExecutionPort => ({
   resolveTarget: () => { calls.push("resolve"); return { id: "t", entity: {}, distance: targetDistance }; },
   applyDamage: (_target, damage) => { calls.push(`damage:${damage}`); return true; },
@@ -39,7 +36,6 @@ const fullPort = (calls: string[] = [], targetDistance = 2): CombatExecutionPort
   resolveProjectileResult: () => { calls.push("projectile"); return "VERIFIED"; },
   resolveDeathLootXp: () => { calls.push("posthit"); return { death: "VERIFIED", loot: "VERIFIED", xp: "VERIFIED" }; },
 });
-
 const makeApi = () => new UniversalAttackAPI(new CooldownResolver(), new CriticalResolver(), new DamageResolver(), new KnockbackResolver());
 
 test("far-view lifecycle records required first distant path and recovery", () => {
@@ -72,9 +68,7 @@ test("far-view exhaustive boundaries", () => {
     [64, "64-100"], [100, "64-100"],
   ];
   for (const [value, zone] of cases) assert.equal(core.classifyChunkDistance(value).zone, zone);
-  for (const value of [100.001, -1, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
-    assert.equal(core.classifyChunkDistance(value).zone, "OUT_OF_RANGE");
-  }
+  for (const value of [100.001, -1, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) assert.equal(core.classifyChunkDistance(value).zone, "OUT_OF_RANGE");
 });
 
 test("far-view invalid distance releases tracked state deterministically", () => {
@@ -209,11 +203,12 @@ test("all five adapters and seven attack types converge to central pipeline", ()
   ];
   const allTypes: WeaponDefinition["attackType"][] = ["MELEE", "HEAVY_MELEE", "THRUST", "SWEEP", "RANGED", "PROJECTILE", "SPECIAL"];
   for (const [index, attackType] of allTypes.entries()) {
-    const adapter = attackType === "MELEE" ? adapters[0]
-      : attackType === "HEAVY_MELEE" ? adapters[1]
-      : attackType === "THRUST" ? adapters[2]
-      : attackType === "RANGED" ? adapters[3]
-      : new CustomWeaponAdapter(weapon(`custom-${index}`, attackType, { durabilityCost: 0 }));
+    let adapter: WeaponAdapter;
+    if (attackType === "MELEE") adapter = adapters[0];
+    else if (attackType === "HEAVY_MELEE") adapter = adapters[1];
+    else if (attackType === "THRUST") adapter = adapters[2];
+    else if (attackType === "RANGED") adapter = adapters[3];
+    else adapter = new CustomWeaponAdapter(weapon(`custom-${index}`, attackType, { durabilityCost: 0 }));
     const result = api.executeAdapter(adapter, { ...context, tick: 20 + index }, fullPort());
     assert.equal(result.accepted, true);
     assert.equal(result.armorStatus, "VERIFIED");
@@ -227,11 +222,7 @@ test("all five adapters and seven attack types converge to central pipeline", ()
 test("accepted combat results cannot contain unverified mandatory stages", () => {
   const api = makeApi();
   const adapter = new SwordAdapter(weapon("sword", "MELEE"));
-  const port: CombatExecutionPort = {
-    resolveTarget: () => ({ id: "t", entity: {}, distance: 2 }),
-    applyDamage: () => true,
-    applyKnockback: () => undefined,
-  };
+  const port: CombatExecutionPort = { resolveTarget: () => ({ id: "t", entity: {}, distance: 2 }), applyDamage: () => true, applyKnockback: () => undefined };
   const result = api.executeAdapter(adapter, context, port);
   assert.equal(result.accepted, false);
   assert.equal(result.reason, "ARMOR_CAPABILITY_UNVERIFIED");
