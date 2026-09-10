@@ -1,7 +1,7 @@
 # NEXY_FARVIEW_100 — PROJECT EVIDENCE REPORT
 
-ONE PROJECT = ONE EVIDENCE/AUDIT/BUILD/VALIDATION REPORT.
-This file is a record, not implementation proof. GitHub source, tree, executed test output and real runtime evidence remain authoritative.
+ONE PROJECT = ONE EVIDENCE / AUDIT / BUILD / VALIDATION REPORT.
+This file records evidence; it is not a substitute for source, executed output, or Bedrock runtime proof.
 
 ## 1. PROJECT / SCOPE
 
@@ -9,263 +9,242 @@ Project: `NEXY_FARVIEW_100`
 Repository: `goif74945-crypto/-`
 Branch: `main`
 Target: Minecraft Bedrock 26.45 ONLY
-Phase: Core Implementation Fix
+Current implementation commit before this report commit: `fa1e87511a3ea7851bbbdd16639183589deeddcf`
 
-Authoritative design source:
-`ข้อมูลการออกแบบ+%20การโจมตีแบบจ้าว้าเปิดAPI%20ให้อาวุธอื่นๆเป็นเหมื่อนกัน.txt`
+Authoritative specification:
+`NEXY_FARVIEW_100 — MASTER DESIGN SPECIFICATION`
 
-Authority:
-1. specification
-2. GitHub code
+Authority order:
+1. authoritative specification
+2. actual GitHub code
 3. executed test output
-4. runtime evidence
+4. real runtime evidence
 5. this report
 
-## 2. PHASE HISTORY
+## 2. CURRENT BLOCKER-CLOSURE RESULT
 
-Phase 0: specification/evidence lock — recorded.
-Phase 1: API capability control — exact target binding remains evidence-gated.
-Phase 2: architecture — recorded before implementation.
-Phase 3: core implementation — implemented source exists; execution proof was initially missing.
-Current fix pass: corrected Playability Shield state source, combat target resolution, far-view runtime integration, governor workload control, bounded scheduler cancellation/budgeting, and addon packaging configuration.
+### BLOCKER A — FAR -> VISIBLE
 
-## 3. ACTUAL FINAL TREE AT PRE-REPORT-UPDATE HEAD
+FIXED IN CODE.
 
-Verified immediately before this report update:
+`src/core/far-view.ts` now permits:
+`UNKNOWN -> DISCOVERED -> VISIBLE -> FAR -> VISIBLE`
+and `VISIBLE/FAR -> RELEASED`.
 
-```text
-.github/workflows/core-check.yml
-README.md
-addon/manifest.json
-package.json
-tools/package-addon.mjs
-tsconfig.json
-src/main.ts
-src/bedrock/runtime.ts
-src/core/types.ts
-src/core/performance.ts
-src/core/far-view.ts
-src/core/playability.ts
-src/core/governor.ts
-src/core/combat.ts
-tests/core.test.ts
-docs/evidence/PROJECT_EVIDENCE_REPORT.md
-```
+`observeDistance()` drives state from the actual distance policy. Both `32-64` and `64-100` use `FAR`; a closer `0-8`, `8-16`, or `16-32` observation can recover `FAR -> VISIBLE`.
 
-There is no second report file in `docs/evidence/`.
-No phase/API/performance/runtime/parity/validation report was recreated.
+Regression coverage exists for UNKNOWN->DISCOVERED, DISCOVERED->VISIBLE, VISIBLE->FAR, FAR->VISIBLE, RELEASED/cleanup, and invalid transitions.
 
-## 4. IMPLEMENTATION INVENTORY
+STATIC STATUS: VERIFIED
+EXECUTED TEST STATUS: NOT VERIFIED
+RUNTIME STATUS: NOT VERIFIED
 
-Implementation source files: 8
-Test files: 1
-Packaging/build support files: 3 (`package.json`, `addon/manifest.json`, `tools/package-addon.mjs`)
-Runtime artifacts committed: 0
-Release `.mcaddon` artifact committed: 0
-Implementation LOC: NOT MEASURED by a local checkout; byte/tree evidence exists in GitHub. No LOC inflation is claimed.
-Test LOC: NOT MEASURED by a local checkout.
+### BLOCKER B — 32–64 priority
 
-## 5. REQUIREMENT -> CODE PROOF
+FIXED IN CODE.
 
-### PLAY-01 — Real gameplay pressure
-EXPECTED: FAR/DECORATIVE workload must be controlled by actual gameplay state, not by the work item's own kind.
-ACTUAL: `GameplayPressureTracker` records real Bedrock gameplay events; `PlayabilityShield.shouldDegrade(kind,tick)` reads the event-fed tracker. `scheduleGameplayWork` no longer derives gameplay activity from `kind`.
-FILES: `src/core/playability.ts`, `src/bedrock/runtime.ts`, `src/main.ts`
-SYMBOLS: `GameplayPressureTracker`, `PlayabilityShield.shouldDegrade`, `installRuntimeEventWiring`, `scheduleGameplayWork`
-CODE PATH: Bedrock event -> tracker -> pressure snapshot -> shield -> scheduler admission.
-TEST: `tests/core.test.ts` contains pressure activation/expiry assertions.
-ACTUAL OUTPUT: latest GitHub Actions check failed before a passing result was produced; no local project execution available.
-RUNTIME EVIDENCE: none.
-STATUS: PARTIAL
+`src/core/performance.ts` is the single distance-to-priority mapping:
+- `0-8` -> `CRITICAL`
+- `8-16` -> `NEAR`
+- `16-32` -> `IMPORTANT`
+- `32-64` -> `MID`
+- `64-100` -> `FAR`
 
-### PLAY-02 — Protected gameplay classes
-EXPECTED: movement/input/camera/combat/inventory/item use/block interaction/break/place/near entity/projectile/boss/PVP/events/redstone remain protected.
-ACTUAL: protected class set contains these classes; direct camera sensing is not exposed by a proven target-26.45 event path, so CAMERA remains a protected class but automatic camera-specific detection is NOT VERIFIED.
-FILES: `src/core/playability.ts`, `src/bedrock/runtime.ts`
-SYMBOLS: `PROTECTED`, event wiring
-CODE PATH: gameplay event -> protected class -> CRITICAL/NEAR priority.
-TEST: source tests cover protected combat and pressure behavior.
-ACTUAL OUTPUT: not passing/verified.
-RUNTIME EVIDENCE: none.
-STATUS: PARTIAL
+`src/main.ts` now calls `priorityForDistance(decision.zone)` directly for far-view scheduling. The previous conflicting conversion of `32-64` to gameplay kind `FAR` was removed.
 
-### PERF-01 — No global entity scan hot path
-EXPECTED: remove repeated `dimension.getEntities()` enumeration from combat target resolution.
-ACTUAL: current repository search for `getEntities()` returned no matches. Combat target resolution uses a finite entity registry and, on cache miss, one attacker-local `getEntitiesFromViewDirection` raycast. Target is resolved once and reused for damage/knockback.
-FILES: `src/bedrock/runtime.ts`, `src/core/combat.ts`
-SYMBOLS: `BedrockCombatPort.resolveTarget`, `UniversalAttackAPI.execute`
-CODE PATH: target id -> bounded registry OR local view raycast -> one resolved target -> damage/knockback.
-TEST: test asserts `resolveTarget` is called once.
-ACTUAL OUTPUT: no passing test output.
-RUNTIME EVIDENCE: none.
-STATUS: PARTIAL
+Regression coverage checks exact zone boundaries and scheduler priority, including an assertion that `32-64` is not `FAR`.
 
-### COMBAT-01 — Universal Attack API convergence
-EXPECTED: Weapon -> Adapter -> Attack Request -> central resolver -> validation -> cooldown -> critical -> damage -> knockback -> result.
-ACTUAL: all five adapters inherit `BaseAdapter`; all requests converge at `UniversalAttackAPI.execute`. Central validation now checks attack type, identities, damage, range, cooldown, knockback and durability fields. Target is resolved once and range-checked before mutation.
-FILES: `src/core/combat.ts`
-SYMBOLS: `BaseAdapter`, `SwordAdapter`, `AxeAdapter`, `SpearAdapter`, `BowAdapter`, `CustomWeaponAdapter`, `UniversalAttackAPI.execute`, `CooldownResolver`, `CriticalResolver`, `DamageResolver`, `KnockbackResolver`
-CODE PATH: adapter -> request -> central validation -> resolve target once -> cooldown -> critical -> damage -> knockback -> result.
-TEST: adapter convergence, single target resolution, cooldown and range tests exist.
-ACTUAL OUTPUT: no passing test output.
-RUNTIME EVIDENCE: none.
-STATUS: PARTIAL
+STATIC STATUS: VERIFIED
+EXECUTED TEST STATUS: NOT VERIFIED
+RUNTIME STATUS: NOT VERIFIED
 
-### FAR-01 — Far-view runtime integration
-EXPECTED: five logical zones, visual/simulation separation, bounded lifecycle, scheduler integration and release.
-ACTUAL: `FarViewCore.observeDistance` now drives chunk lifecycle; `scheduleFarViewWork` calls it before scheduler admission; `releaseFarViewWork` cancels scheduler work and releases chunk state.
-FILES: `src/core/far-view.ts`, `src/main.ts`, `src/core/performance.ts`
-SYMBOLS: `classifyChunkDistance`, `observeDistance`, `transition`, `release`, `scheduleFarViewWork`, `releaseFarViewWork`
-CODE PATH: distance -> zone/detail/simulation policy -> lifecycle -> gameplay shield/governor -> bounded scheduler -> execution/release.
-TEST: far-view zone tests exist; lifecycle runtime test is not executed.
-ACTUAL OUTPUT: no passing test output.
-RUNTIME EVIDENCE: none.
-STATUS: PARTIAL
+### BLOCKER C — Universal Attack API
 
-### GOV-01 — Governor actually governs workload
-EXPECTED: governor state changes scheduler budget/admission and suppresses FAR/DECORATIVE work under critical pressure.
-ACTUAL: `AdaptivePerformanceGovernor.workloadPolicy()` supplies execution budget and FAR/DECORATIVE admission flags. `main.ts` uses this policy both before enqueue and during drain.
-FILES: `src/core/governor.ts`, `src/main.ts`
-SYMBOLS: `evaluate`, `workloadPolicy`, `scheduleGameplayWork`, heartbeat drain
-CODE PATH: pressure -> governor state -> policy -> admission + execution budget.
-TEST: critical-pressure policy assertions exist.
-ACTUAL OUTPUT: no passing test output.
-RUNTIME EVIDENCE: none.
-STATUS: PARTIAL
+HARDENED IN CODE, BUT COMPLETE GAMEPLAY PARITY IS NOT CLAIMED.
 
-### BOUND-01 — Bounded memory/work
-EXPECTED: queues, tracked chunks, cooldowns and entity registry remain finite.
-ACTUAL: scheduler max queue 256; per-window max 32; chunk tracking max 256; cooldown max 4096; entity registry max 2048; explicit cancellation/pruning exists.
-FILES: `src/core/performance.ts`, `src/core/far-view.ts`, `src/core/combat.ts`, `src/bedrock/runtime.ts`
-SYMBOLS: bounds and eviction/pruning methods.
-CODE PATH: admission -> finite map -> dedup/eviction -> bounded drain/recovery.
-TEST: scheduler/cooldown bounds are covered statically by source tests, but no executed output is available.
-ACTUAL OUTPUT: not verified.
-RUNTIME EVIDENCE: none.
-STATUS: PARTIAL
+`src/core/combat.ts` now contains a central pipeline:
+weapon adapter -> attack request -> weapon validation -> target validation -> range/hit validation -> cooldown -> attack type -> critical -> base damage -> modifier damage -> optional mitigation -> final damage -> Bedrock damage port -> knockback -> effects -> durability -> projectile result -> death/loot/XP status -> result.
 
-### API-01 — Critical API surfaces
-EXPECTED: used APIs must be capability-gated and not guessed.
-ACTUAL: `SCRIPT_API_CAPABILITIES` records documented surfaces with `targetBindingVerified:false`. Official Microsoft documentation confirms `playerButtonInput` and the relevant entity raycast/damage surfaces exist in the stable Script API; exact product-26.45 runtime execution is still not proven.
-FILES: `src/bedrock/runtime.ts`, `package.json`, `addon/manifest.json`
-SYMBOLS: `SCRIPT_API_CAPABILITIES`
-CODE PATH: declared dependency -> runtime import -> guarded execution.
-TEST: no Bedrock target runtime.
-ACTUAL OUTPUT: none.
-RUNTIME EVIDENCE: none.
-STATUS: NOT VERIFIED
+Required adapters remain:
+`SwordAdapter`, `AxeAdapter`, `SpearAdapter`, `BowAdapter`, `CustomWeaponAdapter`.
 
-### API-02 — @minecraft/server version
-EXPECTED: exact target-compatible module version must be proven.
-ACTUAL: project declares `@minecraft/server` `2.9.0`; Microsoft documentation identifies 2.9.0 as a stable module and current changelog records its API additions. A direct 1.26.45 <-> 2.9.0 runtime execution proof is still absent.
-FILES: `package.json`, `addon/manifest.json`
-STATUS: NOT VERIFIED
+Required attack types remain:
+`MELEE`, `HEAVY_MELEE`, `THRUST`, `SWEEP`, `RANGED`, `PROJECTILE`, `SPECIAL`.
 
-### PACK-01 — Add-on packaging structure
-EXPECTED: distributable behavior-pack structure with manifest/script entry.
-ACTUAL: `addon/manifest.json` declares script entry `scripts/main.js`; `tools/package-addon.mjs` copies compiled `dist/src` into `addon/scripts`; CI now runs `check:addon` after `check`.
-FILES: `addon/manifest.json`, `tools/package-addon.mjs`, `package.json`, workflow
-TEST: CI packaging step configured but latest run stopped at `npm run check`.
-ACTUAL OUTPUT: no packaging PASS.
-RUNTIME EVIDENCE: none.
-STATUS: PARTIAL
+A bounded `WeaponRegistry` was added. `UniversalAttackAPI.executeAdapter()` registers the adapter definition and routes the generated request through the same central `execute()` path. Direct execution rejects unregistered weapons and attack-type/range mismatches.
 
-### FAR-100
-EXPECTED: 100 real rendered chunks only with direct engine evidence.
-ACTUAL: no claim or fake renderer exists. Code only defines logical 64–100 FAR policy.
-STATUS: NOT VERIFIED
+Damage is explicitly separated as:
+`baseDamage`, `modifiedDamage`, `finalDamage`.
 
-### PARITY-01
-EXPECTED: Java-like parity only after category-specific parity tests.
-ACTUAL: central combat infrastructure exists, but armor/protection/resistance, durability mutation, projectile semantics, death/loot/XP, AI, world mechanics and redstone parity are not proven.
-STATUS: NOT VERIFIED
+Target resolution remains one call per attack and the resolved target is reused for range validation, damage, effects, durability, knockback, projectile and post-hit hooks.
 
-## 6. TEST / BUILD EVIDENCE
+STATIC STATUS: VERIFIED for central architecture and validations.
+EXECUTED TEST STATUS: NOT VERIFIED.
+RUNTIME STATUS: NOT VERIFIED.
+
+## 3. COMBAT STAGE CAPABILITY GATE
+
+The combat interface contains explicit optional runtime hooks rather than fake implementations:
+
+- armor/protection/resistance: `mitigateDamage`
+- status effects: `applyEffect`
+- durability mutation: `applyDurability`
+- projectile result: `resolveProjectileResult`
+- death/loot/XP: `resolveDeathLootXp`
+
+When a capability is not supplied by the Bedrock execution port, the result records `NOT_VERIFIED` instead of pretending success.
+
+Current `src/bedrock/runtime.ts` implements only the proven execution surfaces already present in the project:
+- bounded entity registry
+- local view-direction target lookup
+- `Entity.applyDamage`
+- `Entity.applyImpulse`
+
+No unsupported durability, effect, armor, resistance, loot, XP, or death API was guessed into runtime code.
+
+Therefore Java-like combat parity remains NOT VERIFIED.
+
+## 4. PLAYABILITY SHIELD
+
+Event-fed gameplay pressure remains connected to runtime events in `src/bedrock/runtime.ts` and consumed by `PlayabilityShield` in `src/core/playability.ts`.
+
+Protected classes include input, movement, camera, combat, inventory, item use, block interaction, breaking, placing, nearby entities, projectiles, bosses, PVP, important events and redstone.
+
+CAMERA and BOSS are protected categories, but automatic camera-specific sensing and a dedicated boss-detection event path are not proven against Bedrock 26.45. The project does not claim those detections are automatically verified.
+
+STATIC STATUS: PARTIAL
+EXECUTED TEST STATUS: NOT VERIFIED
+RUNTIME STATUS: NOT VERIFIED
+
+## 5. GOVERNOR / WORKLOAD CONTROL
+
+`AdaptivePerformanceGovernor.workloadPolicy()` is still used by the real scheduling path.
+
+`src/main.ts` applies governor policy during far-view admission and uses `executionBudget` during scheduler drain.
+
+The bounded scheduler remains limited by queue size and per-window drain budget.
+
+STATIC STATUS: VERIFIED
+EXECUTED TEST STATUS: NOT VERIFIED
+RUNTIME STATUS: NOT VERIFIED
+
+## 6. PERFORMANCE / TARGET RESOLUTION
+
+No global `dimension.getEntities()` hot-path is present in the current repository source reviewed for this fix.
+
+`BedrockCombatPort.resolveTarget()` uses:
+1. bounded tracked-entity lookup, then
+2. one attacker-local `getEntitiesFromViewDirection({ maxDistance })` fallback.
+
+The target is resolved once by `UniversalAttackAPI.execute()` and then reused. No repeated entity enumeration is performed by `validateTarget`, `applyDamage`, or `applyKnockback` because those stages receive the already resolved target.
+
+Bounded structures remain:
+- scheduler queue: 256
+- chunk records: 256
+- cooldown entries: 4096
+- tracked entities: 2048
+- weapon registry: 512
+
+PERFORMANCE IMPLEMENTATION STATUS: STATIC VERIFIED
+MEASURED PERFORMANCE STATUS: NOT VERIFIED
+
+## 7. API AUDIT — BEDROCK 26.45
+
+The repository records these critical API surfaces in `src/bedrock/runtime.ts` with `documented: true` and `targetBindingVerified: false`:
+
+| API | Expected capability | Usage location | Target 26.45 binding |
+|---|---|---|---|
+| `system.runInterval` | bounded heartbeat | `installRuntimeHeartbeat` | NOT VERIFIED |
+| `world.afterEvents.playerButtonInput` | input/movement pressure | event wiring | NOT VERIFIED |
+| `world.afterEvents.playerBreakBlock` | block-break pressure | event wiring | NOT VERIFIED |
+| `world.afterEvents.playerPlaceBlock` | block-place pressure | event wiring | NOT VERIFIED |
+| `world.afterEvents.itemUse` | item-use pressure | event wiring | NOT VERIFIED |
+| `world.afterEvents.entityHitEntity` | combat/PVP pressure | event wiring | NOT VERIFIED |
+| `world.afterEvents.projectileHitEntity/projectileHitBlock` | projectile pressure | event wiring | NOT VERIFIED |
+| `Entity.getEntitiesFromViewDirection` | local bounded target resolution | `BedrockCombatPort.resolveTarget` | NOT VERIFIED |
+| `Entity.applyDamage` | actual damage mutation | `BedrockCombatPort.applyDamage` | NOT VERIFIED |
+| `Entity.applyImpulse` | actual knockback mutation | `BedrockCombatPort.applyKnockback` | NOT VERIFIED |
+
+The dependency remains `@minecraft/server` `2.9.0` in `package.json` and `addon/manifest.json`.
+
+Compilation/API documentation does not prove an exact Bedrock 26.45 product binding. Exact target runtime execution is still absent.
+
+API STATUS: NOT VERIFIED.
+
+## 8. TEST / BUILD / PACKAGING EVIDENCE
 
 Configured commands:
+- `npm install --ignore-scripts`
 - `npm run build`
 - `npm test`
 - `npm run check`
 - `npm run package:addon`
 - `npm run check:addon`
 
-Actual CI evidence:
-- GitHub Actions `core-check` run #27 executed against commit `1376fb6d0aca0883c22939095219e7e28298808e`.
-- `npm install --ignore-scripts`: SUCCESS.
-- `npm run check`: FAILED.
-- `npm run check:addon`: SKIPPED because the previous step failed.
-- Failure details were not exposed by the available GitHub connector log endpoint; therefore no fabricated compiler/test output is recorded.
+Previously observed GitHub Actions evidence for commit `1376fb6d0aca0883c22939095219e7e28298808e`:
+- `npm install --ignore-scripts`: SUCCESS
+- `npm run check`: FAILED
+- `npm run check:addon`: SKIPPED
+- detailed failure text was not exposed by the available connector endpoint, so no failure reason is invented here.
 
-Local execution:
-- No local repository checkout with project dependencies was available in this execution environment.
-- `npm view @minecraft/server@2.9.0` could not complete because external DNS/network access was unavailable.
-- Therefore local `npm run build/test/check` output is NOT VERIFIED.
+For the blocker-closure commit `fa1e87511a3ea7851bbbdd16639183589deeddcf`, the repository workflow is configured to run on pushes to `main`, but the current connector returned no new commit status/workflow result when checked.
 
-## 7. RUNTIME / PERFORMANCE / VISUAL / MOBILE / MULTIPLAYER
+Therefore this fix pass has:
+- real code changes committed: YES
+- current real `npm run check` output: NOT VERIFIED
+- current real `npm run check:addon` output: NOT VERIFIED
+- current build PASS: NOT VERIFIED
+- current package PASS: NOT VERIFIED
 
-RUNTIME: NOT VERIFIED — no Bedrock 26.45 execution log.
-PERFORMANCE: NOT VERIFIED — implementation contains finite controls but no measured frame/tick/memory data.
-VISUAL: NOT VERIFIED — no device/render evidence.
-MOBILE: NOT VERIFIED — no device execution evidence.
-MULTIPLAYER: NOT VERIFIED — no multiplayer execution evidence.
-PARITY: NOT VERIFIED — no category-specific parity suite/runtime evidence.
-100-CHUNK: NOT VERIFIED — design target only; no real-render proof.
+No `.mcaddon` release artifact is committed.
 
-## 8. BLOCKERS / KNOWN LIMITATIONS
+## 9. STATIC / TEST / RUNTIME / PERFORMANCE / VISUAL / MOBILE / MULTIPLAYER
 
-1. Latest CI run is FAIL; exact compiler/test failure text is unavailable through the current connector, so the failure is not guessed away.
-2. Exact Bedrock 26.45 runtime compatibility is not executed.
-3. Automatic camera-specific pressure detection is not proven by a target-specific event path; CAMERA remains protected but is not claimed as automatically sensed.
-4. Combat durability mutation, armor/protection/resistance, death/loot/XP and complete projectile semantics are not implemented/proven.
-5. No `.mcaddon` release artifact has been produced or runtime-installed.
-6. No performance/mobile/visual/multiplayer measurements exist.
+STATIC CODE: VERIFIED for the blocker fixes described above.
+TEST: NOT VERIFIED.
+BUILD: NOT VERIFIED.
+PACKAGING: NOT VERIFIED.
+API 26.45 BINDING: NOT VERIFIED.
+RUNTIME: NOT VERIFIED.
+PERFORMANCE MEASUREMENTS: NOT VERIFIED.
+VISUAL: NOT VERIFIED.
+MOBILE: NOT VERIFIED.
+MULTIPLAYER: NOT VERIFIED.
+100 REAL RENDERED CHUNKS: NOT VERIFIED.
+JAVA-LIKE GAMEPLAY PARITY: NOT VERIFIED.
 
-## 9. SELF-AUDIT
+## 10. REMAINING UNVERIFIED / BLOCKED ITEMS
 
-Repository: locked `goif74945-crypto/-`.
-Branch: locked `main`.
-No `getEntities()` global enumeration remains in the current repository search.
-No duplicate evidence report exists in `docs/evidence/`.
-No 100-real-rendered-chunk claim exists.
-No Java-parity PASS is claimed.
-No runtime PASS is claimed.
-No performance PASS is claimed.
+1. Current CI/build/test output for `fa1e87511a3ea7851bbbdd16639183589deeddcf` is not available through the connector result observed during this fix.
+2. Exact Bedrock 26.45 runtime binding and in-game execution are not proven.
+3. Armor/protection/resistance runtime behavior is not proven.
+4. Status-effect runtime application is not proven.
+5. Durability mutation is not proven.
+6. Projectile semantics are not proven beyond event wiring/explicit result gating.
+7. Death/loot/XP integration is not proven.
+8. Automatic camera-specific and boss-specific detection is not proven.
+9. Performance, thermal, mobile, visual and multiplayer measurements are absent.
+10. 100 real rendered chunks are not proven.
 
-## 10. CURRENT STATUS
+## 11. ONE-REPORT / NO-FALSE-PASS SELF-AUDIT
 
-IMPLEMENTED STATIC CODE:
-- event-fed gameplay pressure tracker
-- bounded scheduler with dedup/priority/cancel/budgeted drain
-- far-view zones and bounded lifecycle
-- governor policy connected to admission and execution budget
-- centralized Universal Attack API and five required adapters
-- single target resolution path with local raycast fallback
-- bounded entity registry
-- Bedrock behavior-pack manifest and deterministic packaging step
+Repository lock: `goif74945-crypto/-` — preserved.
+Branch lock: `main` — preserved.
+Target lock: Bedrock 26.45 ONLY — preserved.
+Additional evidence report files: none.
+Global `dimension.getEntities()` hot path: not present in reviewed source.
+False runtime PASS: not claimed.
+False performance PASS: not claimed.
+False 100-chunk PASS: not claimed.
+False Java-parity PASS: not claimed.
+Unsupported Bedrock APIs: not guessed.
 
-PARTIAL:
-- playability runtime control
-- far-view runtime execution
-- governor runtime execution
-- combat runtime integration
-- packaging verification
+## 12. FINAL STATUS
 
-NOT IMPLEMENTED:
-- complete Java-like gameplay parity
-- complete armor/resistance/durability/loot/XP integration
-- complete runtime far rendering system
-- 100 real rendered chunks
+FAR-VIEW BLOCKER A: FIXED STATICALLY.
+DISTANCE/PRIORITY BLOCKER B: FIXED STATICALLY.
+UNIVERSAL ATTACK API BLOCKER C: CENTRALIZED / HARDENED STATICALLY; unsupported runtime stages remain explicitly NOT VERIFIED.
 
-NOT VERIFIED:
-- `npm run build` final passing result
-- `npm test` final passing result
-- `npm run check` final passing result
-- addon package execution in Bedrock 26.45
-- exact API/product binding through runtime
-- performance measurements
-- visual/mobile/multiplayer evidence
-- parity evidence
+FINAL STATUS: PARTIAL
 
-FINAL VERDICT: PARTIAL / NOT VERIFIED
-
-The repository contains real implementation code and the requested blocker fixes, but the project is deliberately not declared complete because the latest CI check is failing and Bedrock runtime evidence is absent.
+This is intentionally not PASS because current CI/test output and Bedrock 26.45 runtime evidence are still missing.
