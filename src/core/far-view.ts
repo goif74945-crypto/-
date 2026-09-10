@@ -1,9 +1,17 @@
 import type { ChunkState, DistanceZone } from "./types.js";
 
+export type RenderCapability = "ENGINE_SUPPORTED" | "ENGINE_LIMITED" | "NOT_IMPLEMENTABLE";
+
 export interface FarViewDecision {
   readonly zone: DistanceZone;
   readonly detail: "FULL" | "HIGH" | "MEDIUM" | "LOW" | "MINIMAL";
   readonly simulationAllowed: boolean;
+}
+
+export interface RenderCapabilityDecision {
+  readonly capability: RenderCapability;
+  readonly requestedDistance: number;
+  readonly clientMaxRenderDistance: number | null;
 }
 
 export interface ChunkRecord {
@@ -39,6 +47,20 @@ export class FarViewCore {
     if (distanceInChunks < 64) return { zone: "32-64", detail: "LOW", simulationAllowed: false };
     if (distanceInChunks <= 100) return { zone: "64-100", detail: "MINIMAL", simulationAllowed: false };
     return { zone: "OUT_OF_RANGE", detail: "MINIMAL", simulationAllowed: false };
+  }
+
+  public renderCapability(requestedDistance: number, clientMaxRenderDistance: number | null): RenderCapabilityDecision {
+    if (!Number.isFinite(requestedDistance) || requestedDistance < 0) {
+      return { capability: "NOT_IMPLEMENTABLE", requestedDistance, clientMaxRenderDistance };
+    }
+    if (clientMaxRenderDistance === null || !Number.isFinite(clientMaxRenderDistance) || clientMaxRenderDistance < 0) {
+      return { capability: "ENGINE_LIMITED", requestedDistance, clientMaxRenderDistance: null };
+    }
+    return {
+      capability: requestedDistance <= clientMaxRenderDistance ? "ENGINE_SUPPORTED" : "ENGINE_LIMITED",
+      requestedDistance,
+      clientMaxRenderDistance,
+    };
   }
 
   public observeDistance(key: string, distanceInChunks: number, tick: number): FarViewDecision {
