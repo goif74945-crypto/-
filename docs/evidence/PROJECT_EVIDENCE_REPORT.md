@@ -10,9 +10,9 @@ Target: Minecraft Bedrock 26.45 ONLY
 
 ## CURRENT CODE STATE
 
-Blocker-closure implementation is present in the source tree used for this verification baseline. No test/build/runtime success is claimed without fresh execution evidence.
+Blocker-closure implementation is applied to the source tree in this verification baseline. The report does not claim test/build/runtime success without fresh execution evidence.
 
-Source/test files in scope:
+Changed source/test files:
 - `src/core/far-view.ts`
 - `src/core/performance.ts`
 - `src/core/combat.ts`
@@ -37,7 +37,7 @@ STATIC: VERIFIED
 Visual zones: `0-8 FULL`, `8-16 HIGH`, `16-32 MEDIUM`, `32-64 LOW`, `64-100 MINIMAL/FAR`.
 Scheduler priorities: `0-8 CRITICAL`, `8-16 NEAR`, `16-32 IMPORTANT`, `32-64 MID`, `64-100 FAR`.
 
-The runtime scheduling path uses the single distance-to-priority mapping. Tests cover exact boundaries and invalid distance inputs.
+`src/main.ts` uses the single distance-to-priority mapping. `32-64` is MID rather than FAR.
 
 TEST: NOT VERIFIED
 RUNTIME: NOT VERIFIED
@@ -46,11 +46,11 @@ RUNTIME: NOT VERIFIED
 
 STATIC: PARTIAL
 
-Central combat code validates weapon registration, target identity, range/hit, cooldown and attack type; preserves base/modified/final damage; and keeps armor, resistance, effects, durability, projectile, death, loot and XP status independent.
+Central combat code validates weapon registration, target identity, range/hit, cooldown and attack type; preserves base/modified/final damage; and keeps armor, resistance, effects, durability, projectile, death, loot and XP capability status independent.
 
-Five required adapters and seven required attack types remain centrally routed.
+Required adapters and seven required attack types remain centrally routed.
 
-The Bedrock runtime port currently implements bounded entity tracking, local target lookup, `Entity.applyDamage`, and `Entity.applyImpulse`. Full armor/resistance/effect/durability/projectile/death/loot/XP runtime capability remains NOT VERIFIED.
+Runtime support remains limited to bounded entity tracking, local target lookup, `Entity.applyDamage`, and `Entity.applyImpulse`. Remaining combat stages are NOT VERIFIED at exact Bedrock 26.45 runtime level.
 
 TEST: NOT VERIFIED
 RUNTIME: NOT VERIFIED
@@ -60,13 +60,13 @@ JAVA-LIKE PARITY: NOT VERIFIED
 
 STATIC: PARTIAL
 
-Event-fed gameplay pressure remains connected to workload admission. CAMERA automatic sensing and BOSS automatic detection remain NOT VERIFIED.
+Event-fed gameplay pressure remains connected to workload admission. CAMERA automatic sensing: NOT VERIFIED. BOSS automatic detection: NOT VERIFIED.
 
 ## GOVERNOR / PERFORMANCE
 
 STATIC: PARTIAL
 
-Governor controls FAR/DECORATIVE admission and execution budget. Scheduler remains bounded and priority ordered. No global `dimension.getEntities()` attack scan exists in the reviewed source.
+Governor controls FAR/DECORATIVE admission and scheduler execution budget. Scheduler remains finite and priority ordered. No global `dimension.getEntities()` attack scan exists in the reviewed implementation.
 
 Measured FPS/TPS/memory/thermal performance: NOT VERIFIED.
 
@@ -74,9 +74,9 @@ Measured FPS/TPS/memory/thermal performance: NOT VERIFIED.
 
 Dependency: `@minecraft/server` `2.9.0`.
 
-Microsoft documents 2.9.0 as stable for Minecraft 1.26.40 and treats Script API module versions separately from Minecraft product versions. Exact 26.45 runtime compatibility is NOT VERIFIED.
+Exact Bedrock 26.45 runtime compatibility: NOT VERIFIED.
 
-Critical used surfaces include scheduling, player/block/item/entity events, local entity raycasting, `Entity.applyDamage`, and `Entity.applyImpulse`.
+Critical used surfaces include scheduling, player/block/item/entity events, `Entity.getEntitiesFromViewDirection`, `Entity.applyDamage`, and `Entity.applyImpulse`.
 
 ## TEST / BUILD / PACKAGE
 
@@ -88,14 +88,15 @@ Configured commands:
 - `npm run package:addon`
 - `npm run check:addon`
 
-Previous confirmed CI on the pre-repair tree:
+Confirmed previous CI failure before the compiler repair:
 - install SUCCESS; 6 packages added; 0 vulnerabilities
 - `npm run check` FAILED, exit code 2
-- errors occurred in combat, performance, and tests
-- addon check SKIPPED
+- TypeScript errors were found in combat, performance and tests
+- addon check was SKIPPED
 
-The identified compiler errors were repaired in the current source/test tree. Fresh execution proof for the repaired tree: NOT VERIFIED.
+Those three compiler errors were repaired in the current source/test tree.
 
+Fresh current-tree execution evidence: NOT VERIFIED.
 BUILD: NOT VERIFIED
 TEST: NOT VERIFIED
 PACKAGE ARTIFACT: NOT VERIFIED
