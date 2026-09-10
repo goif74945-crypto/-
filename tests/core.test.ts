@@ -22,24 +22,272 @@ import {
 } from "../src/core/combat.js";
 import type { WorkItem } from "../src/core/types.js";
 
-const weapon = (id: string, attackType: WeaponDefinition["attackType"]): WeaponDefinition => ({ id, attackType, baseDamage: 10, range: 3, cooldownTicks: 5, knockback: 2, durabilityCost: 1 });
-const makeApi = () => new UniversalAttackAPI(new CooldownResolver(), new CriticalResolver(), new DamageResolver(), new KnockbackResolver());
-const makePort = (targetDistance = 2, calls: string[] = []): CombatExecutionPort => ({ resolveTarget: () => { calls.push("resolve"); return { id: "t", entity: {}, distance: targetDistance }; }, applyDamage: (_target, damage) => { calls.push(`damage:${damage}`); return true; }, applyKnockback: (_target, impulse) => { calls.push(`knockback:${impulse.x}`); } });
+const weapon = (id: string, attackType: WeaponDefinition["attackType"], overrides: Partial<WeaponDefinition> = {}): WeaponDefinition => ({
+  id, attackType, baseDamage: 10, range: 3, cooldownTicks: 5, knockback: 2, durabilityCost: 1, ...overrides,
+});
+
 const context = { attackerId: "a", targetId: "t", direction: { x: 1, y: 0, z: 0 }, tick: 10, criticalEligible: false };
 
-test("far-view first distant observation records the required lifecycle", () => { const core = new FarViewCore(); const decision = core.observeDistance("c", 70, 1); assert.equal(decision.zone, "64-100"); assert.deepEqual(core.getTransitionHistory("c"), ["DISCOVERED", "VISIBLE", "FAR"]); assert.equal(core.getState("c"), "FAR"); });
-test("far-view lifecycle supports recovery and release", () => { const core = new FarViewCore(); core.observeDistance("c", 4, 1); assert.deepEqual(core.getTransitionHistory("c"), ["DISCOVERED", "VISIBLE"]); core.observeDistance("c", 70, 2); assert.deepEqual(core.getTransitionHistory("c"), ["DISCOVERED", "VISIBLE", "FAR"]); core.observeDistance("c", 20, 3); assert.equal(core.getState("c"), "VISIBLE"); assert.deepEqual(core.getTransitionHistory("c"), ["DISCOVERED", "VISIBLE", "FAR", "VISIBLE"]); core.release("c", 4); assert.equal(core.getState("c"), "RELEASED"); assert.deepEqual(core.getTransitionHistory("c"), ["DISCOVERED", "VISIBLE", "FAR", "VISIBLE", "RELEASED"]); core.clearReleased(); assert.equal(core.getState("c"), undefined); assert.deepEqual(core.getTransitionHistory("c"), []); });
-test("far-view invalid transitions are rejected", () => { const core = new FarViewCore(); assert.equal(core.transition("bad", "FAR", 1), false); assert.equal(core.transition("bad", "DISCOVERED", 1), true); assert.equal(core.transition("bad", "FAR", 2), false); assert.equal(core.transition("bad", "VISIBLE", 2), true); });
-test("far-view boundaries and invalid distances", () => { const core = new FarViewCore(); for (const [value, zone] of [[0,"0-8"],[8,"8-16"],[16,"16-32"],[32,"32-64"],[64,"64-100"],[100,"64-100"]] as const) assert.equal(core.classifyChunkDistance(value).zone, zone); for (const value of [100.001,-1,Number.NaN,Number.POSITIVE_INFINITY,Number.NEGATIVE_INFINITY]) assert.equal(core.classifyChunkDistance(value).zone,"OUT_OF_RANGE"); });
-test("distance zones map to authoritative scheduler priorities", () => { assert.equal(priorityForDistance("0-8"), "CRITICAL"); assert.equal(priorityForDistance("8-16"), "NEAR"); assert.equal(priorityForDistance("16-32"), "IMPORTANT"); assert.equal(priorityForDistance("32-64"), "MID"); assert.equal(priorityForDistance("64-100"), "FAR"); const scheduler = new BoundedPriorityScheduler<void>({ maxQueue: 8, maxPerWindow: 8 }); scheduler.enqueue({ key: "32-64", priority: "MID", createdAtTick: 1, payload: undefined }); scheduler.enqueue({ key: "64-100", priority: "FAR", createdAtTick: 1, payload: undefined }); assert.equal(scheduler.peekPriority("32-64"), "MID"); assert.equal(scheduler.peekPriority("64-100"), "FAR"); });
-test("100-chunk far-view workload remains bounded and local priority is preserved", () => { const core = new FarViewCore(100); const scheduler = new BoundedPriorityScheduler<number>({ maxQueue: 100, maxPerWindow: 10 }); for (let i = 0; i < 100; i++) { const distance = 64 + (i % 37) / 10; const decision = core.observeDistance(`chunk-${i}`, distance, i); assert.equal(decision.zone, "64-100"); assert.equal(scheduler.enqueue({ key: `chunk-${i}`, priority: priorityForDistance(decision.zone), createdAtTick: i, payload: i }), true); } assert.equal(core.trackedCount, 100); assert.equal(scheduler.size, 100); let executed = 0; assert.equal(scheduler.drain(() => executed++, 10), 10); assert.equal(executed, 10); assert.equal(scheduler.size, 90); const critical = scheduler.enqueue({ key: "local-critical", priority: "CRITICAL", createdAtTick: 101, payload: 101 }); assert.equal(critical, true); assert.equal(scheduler.peekPriority("local-critical"), "CRITICAL"); });
-test("bounded priority scheduler protects high priority", () => { const scheduler = new BoundedPriorityScheduler<number>({ maxQueue: 2, maxPerWindow: 1 }); const item = (key: string, priority: WorkItem<number>["priority"]): WorkItem<number> => ({ key, priority, createdAtTick: 1, payload: 1 }); assert.equal(scheduler.enqueue(item("low", "FAR")), true); assert.equal(scheduler.enqueue(item("decorative", "DECORATIVE")), true); assert.equal(scheduler.enqueue(item("critical", "CRITICAL")), true); let ran = 0; scheduler.drain(() => ran++); assert.equal(ran, 1); });
-test("gameplay pressure blocks far/decorative work and expires", () => { const pressure = new GameplayPressureTracker(3); const shield = new PlayabilityShield(pressure); pressure.mark("COMBAT", 0); assert.equal(shield.shouldDegrade("FAR", 1), true); assert.equal(shield.shouldDegrade("DECORATIVE", 1), true); assert.equal(shield.shouldDegrade("COMBAT", 1), false); assert.equal(shield.shouldDegrade("FAR", 4), false); assert.equal(shield.priorityFor("CAMERA"), "CRITICAL"); assert.equal(shield.priorityFor("BOSS"), "CRITICAL"); });
-test("governor changes executable policy under pressure", () => { const governor = new AdaptivePerformanceGovernor(); assert.equal(governor.evaluate({ queueRatio: 1, workRatio: 1, memoryRatio: 0, localGameplayActive: true }), "CRITICAL"); assert.equal(governor.workloadPolicy().allowFar, false); assert.equal(governor.workloadPolicy().allowDecorative, false); assert.equal(governor.workloadPolicy().executionBudget, 2); });
-test("all five adapters converge and all seven attack types reach central resolver", () => { const adapters: WeaponAdapter[] = [new SwordAdapter(weapon("sword","MELEE")),new AxeAdapter(weapon("axe","HEAVY_MELEE")),new SpearAdapter(weapon("spear","THRUST")),new BowAdapter(weapon("bow","RANGED")),new CustomWeaponAdapter(weapon("custom","SPECIAL"))]; const allTypes: WeaponDefinition["attackType"][] = ["MELEE","HEAVY_MELEE","THRUST","SWEEP","RANGED","PROJECTILE","SPECIAL"]; const api = makeApi(); const calls: string[] = []; for (const [index, attackType] of allTypes.entries()) { const adapter = attackType === "MELEE" ? adapters[0] : attackType === "HEAVY_MELEE" ? adapters[1] : attackType === "THRUST" ? adapters[2] : attackType === "RANGED" ? adapters[3] : new CustomWeaponAdapter(weapon(`custom-${index}`, attackType)); assert.ok(adapter); assert.equal(api.executeAdapter(adapter, { ...context, tick: 20 + index }, makePort(2,calls)).accepted, true); } assert.equal(api.weapons.size, 7); assert.equal(calls.filter(call => call === "resolve").length, 7); });
-test("weapon validation rejects unregistered and mismatched requests", () => { const registry = new WeaponRegistry(); const api = new UniversalAttackAPI(new CooldownResolver(),new CriticalResolver(),new DamageResolver(),new KnockbackResolver(),registry); const request = new SwordAdapter(weapon("sword","MELEE")).toAttackRequest(context); assert.equal(api.execute(request,makePort()).reason,"WEAPON_UNREGISTERED"); assert.equal(registry.register(weapon("sword","MELEE")),true); assert.equal(api.execute({ ...request, attackType: "PROJECTILE" }, makePort()).reason,"WEAPON_ATTACK_TYPE_MISMATCH"); });
-test("central pipeline keeps base modified final damage distinct and resolves target once", () => { const api = makeApi(); const adapter = new SwordAdapter({ ...weapon("sword","MELEE"), modifiers:[{id:"strength",multiplier:2}] }); const calls:string[]=[]; const port:CombatExecutionPort={...makePort(2,calls),mitigateArmorDamage:(_t,_r,incoming)=>incoming-3,mitigateResistanceDamage:(_t,_r,incoming)=>incoming-2,applyDurability:(_r)=>true}; const result=api.executeAdapter(adapter,{...context,criticalEligible:true},port); assert.equal(result.accepted,true); assert.equal(result.baseDamage,10); assert.equal(result.modifiedDamage,30); assert.equal(result.finalDamage,25); assert.equal(result.armorStatus,"VERIFIED"); assert.equal(result.resistanceStatus,"VERIFIED"); assert.equal(result.durabilityStatus,"VERIFIED"); assert.equal(calls.filter(call=>call==="resolve").length,1); });
-test("armor and resistance statuses are independent", () => { const api=makeApi(); const adapter=new SwordAdapter(weapon("sword","MELEE")); const result=api.executeAdapter(adapter,context,{...makePort(),mitigateArmorDamage:(_t,_r,incoming)=>incoming-1}); assert.equal(result.armorStatus,"VERIFIED"); assert.equal(result.resistanceStatus,"NOT_VERIFIED"); });
-test("unsupported later stages remain explicitly unverified without runtime capability", () => { const api=makeApi(); const adapter=new BowAdapter({...weapon("bow","PROJECTILE"),effects:[{id:"slowness",durationTicks:20,amplifier:1}]}); const result=api.executeAdapter(adapter,context,makePort()); assert.equal(result.durabilityStatus,"NOT_VERIFIED"); assert.deepEqual(result.effectStatuses,["NOT_VERIFIED"]); assert.equal(result.projectileStatus,"NOT_VERIFIED"); assert.equal(result.deathStatus,"NOT_VERIFIED"); assert.equal(result.lootStatus,"NOT_VERIFIED"); assert.equal(result.xpStatus,"NOT_VERIFIED"); });
-test("range and target validation reject before mutation", () => { const api=makeApi(); const request=new SwordAdapter(weapon("sword","MELEE")).toAttackRequest(context); assert.equal(api.weapons.register(weapon("sword","MELEE")),true); const port:CombatExecutionPort={resolveTarget:()=>({id:"wrong",entity:{},distance:1}),applyDamage:()=>{throw new Error("damage must not run")},applyKnockback:()=>{throw new Error("knockback must not run")}}; assert.equal(api.execute(request,port).reason,"TARGET_INVALID"); const outOfRange={...port,resolveTarget:()=>({id:"t",entity:{},distance:4})}; assert.equal(api.execute(request,outOfRange).reason,"OUT_OF_RANGE"); });
-test("cooldown blocks second attack", () => { const api=makeApi(); const adapter=new SwordAdapter(weapon("sword","MELEE")); assert.equal(api.executeAdapter(adapter,context,makePort()).accepted,true); assert.equal(api.executeAdapter(adapter,{...context,tick:11},makePort()).reason,"COOLDOWN"); });
+const fullPort = (calls: string[] = [], targetDistance = 2): CombatExecutionPort => ({
+  resolveTarget: () => { calls.push("resolve"); return { id: "t", entity: {}, distance: targetDistance }; },
+  applyDamage: (_target, damage) => { calls.push(`damage:${damage}`); return true; },
+  applyKnockback: (_target, impulse) => { calls.push(`knockback:${impulse.x}`); },
+  mitigateArmorDamage: (_target, _request, incoming) => { calls.push("armor"); return incoming - 3; },
+  mitigateResistanceDamage: (_target, _request, incoming) => { calls.push("resistance"); return incoming - 2; },
+  applyEffect: () => { calls.push("effect"); return true; },
+  applyDurability: () => { calls.push("durability"); return true; },
+  resolveProjectileResult: () => { calls.push("projectile"); return "VERIFIED"; },
+  resolveDeathLootXp: () => { calls.push("posthit"); return { death: "VERIFIED", loot: "VERIFIED", xp: "VERIFIED" }; },
+});
+
+const makeApi = () => new UniversalAttackAPI(new CooldownResolver(), new CriticalResolver(), new DamageResolver(), new KnockbackResolver());
+
+test("far-view lifecycle records required first distant path and recovery", () => {
+  const core = new FarViewCore();
+  core.observeDistance("c", 70, 1);
+  assert.deepEqual(core.getTransitionHistory("c"), ["DISCOVERED", "VISIBLE", "FAR"]);
+  core.observeDistance("c", 20, 2);
+  assert.equal(core.getState("c"), "VISIBLE");
+  core.release("c", 3);
+  assert.equal(core.getState("c"), "RELEASED");
+  assert.equal(core.clearReleased(), 1);
+  assert.deepEqual(core.getTransitionHistory("c"), []);
+});
+
+test("far-view rejects illegal transitions and non-monotonic ticks", () => {
+  const core = new FarViewCore();
+  assert.equal(core.transition("bad", "FAR", 1), false);
+  assert.equal(core.transition("bad", "DISCOVERED", 1), true);
+  assert.equal(core.transition("bad", "FAR", 2), false);
+  assert.equal(core.transition("bad", "VISIBLE", 2), true);
+  assert.equal(core.transition("bad", "FAR", 1), false);
+  assert.throws(() => core.observeDistance("", 4, 2));
+});
+
+test("far-view exhaustive boundaries", () => {
+  const core = new FarViewCore();
+  const cases: readonly (readonly [number, string])[] = [
+    [0, "0-8"], [7.999, "0-8"], [8, "8-16"], [15.999, "8-16"],
+    [16, "16-32"], [31.999, "16-32"], [32, "32-64"], [63.999, "32-64"],
+    [64, "64-100"], [100, "64-100"],
+  ];
+  for (const [value, zone] of cases) assert.equal(core.classifyChunkDistance(value).zone, zone);
+  for (const value of [100.001, -1, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+    assert.equal(core.classifyChunkDistance(value).zone, "OUT_OF_RANGE");
+  }
+});
+
+test("far-view invalid distance releases tracked state deterministically", () => {
+  const core = new FarViewCore();
+  core.observeDistance("c", 4, 1);
+  assert.equal(core.observeDistance("c", Number.NaN, 2).zone, "OUT_OF_RANGE");
+  assert.equal(core.getState("c"), "RELEASED");
+});
+
+test("far-view stale reclamation and bounded history work", () => {
+  const core = new FarViewCore(2);
+  core.observeDistance("a", 4, 1);
+  core.observeDistance("b", 4, 2);
+  assert.equal(core.reclaimStale(81, 80), 0);
+  assert.equal(core.reclaimStale(82, 80), 0);
+  assert.equal(core.reclaimStale(82, 79), 2);
+  assert.equal(core.trackedCount, 2);
+  for (let tick = 3; tick <= 20; tick++) {
+    core.observeDistance("a", tick % 2 === 0 ? 70 : 20, tick);
+  }
+  assert.ok(core.getTransitionHistory("a").length <= 8);
+});
+
+test("far-view render capability reports engine limit instead of simulating rendering", () => {
+  const core = new FarViewCore();
+  assert.equal(core.renderCapability(32, 64).capability, "ENGINE_SUPPORTED");
+  assert.equal(core.renderCapability(100, 64).capability, "ENGINE_LIMITED");
+  assert.equal(core.renderCapability(100, null).capability, "ENGINE_LIMITED");
+  assert.equal(core.renderCapability(Number.NaN, 64).capability, "NOT_IMPLEMENTABLE");
+});
+
+test("distance zones map to one authoritative scheduler priority mapping", () => {
+  assert.equal(priorityForDistance("0-8"), "CRITICAL");
+  assert.equal(priorityForDistance("8-16"), "NEAR");
+  assert.equal(priorityForDistance("16-32"), "IMPORTANT");
+  assert.equal(priorityForDistance("32-64"), "MID");
+  assert.equal(priorityForDistance("64-100"), "FAR");
+});
+
+test("scheduler stays bounded under 10000 FAR requests", () => {
+  const scheduler = new BoundedPriorityScheduler<number>({ maxQueue: 256, maxPerWindow: 32, maxWorkAgeTicks: 40 });
+  let admitted = 0;
+  for (let i = 0; i < 10_000; i++) {
+    if (scheduler.enqueue({ key: `far-${i}`, priority: "FAR", createdAtTick: i % 10, payload: i })) admitted++;
+  }
+  assert.equal(admitted, 256);
+  assert.equal(scheduler.size, 256);
+  assert.equal(scheduler.stats().maxObservedQueue, 256);
+  assert.equal(scheduler.drain(() => undefined, 32, 10), 32);
+  assert.equal(scheduler.size, 224);
+});
+
+test("scheduler deduplicates repeated keys and permits higher priority replacement", () => {
+  const scheduler = new BoundedPriorityScheduler<number>({ maxQueue: 2, maxPerWindow: 2 });
+  assert.equal(scheduler.enqueue({ key: "x", priority: "FAR", createdAtTick: 1, payload: 1 }), true);
+  assert.equal(scheduler.enqueue({ key: "x", priority: "FAR", createdAtTick: 2, payload: 2 }), false);
+  assert.equal(scheduler.enqueue({ key: "x", priority: "CRITICAL", createdAtTick: 3, payload: 3 }), true);
+  assert.equal(scheduler.peekPriority("x"), "CRITICAL");
+});
+
+test("scheduler evicts oldest lowest priority under pressure and preserves critical", () => {
+  const scheduler = new BoundedPriorityScheduler<number>({ maxQueue: 3, maxPerWindow: 1 });
+  assert.equal(scheduler.enqueue({ key: "a", priority: "FAR", createdAtTick: 1, payload: 1 }), true);
+  assert.equal(scheduler.enqueue({ key: "b", priority: "DECORATIVE", createdAtTick: 2, payload: 2 }), true);
+  assert.equal(scheduler.enqueue({ key: "c", priority: "MID", createdAtTick: 3, payload: 3 }), true);
+  assert.equal(scheduler.enqueue({ key: "critical", priority: "CRITICAL", createdAtTick: 4, payload: 4 }), true);
+  assert.equal(scheduler.peekPriority("b"), undefined);
+  let ran = "";
+  scheduler.drain(item => { ran = item.key; }, 1, 4);
+  assert.equal(ran, "critical");
+});
+
+test("scheduler cancellation and stale rejection work under pressure", () => {
+  const scheduler = new BoundedPriorityScheduler<number>({ maxQueue: 4, maxPerWindow: 2, maxWorkAgeTicks: 5 });
+  assert.equal(scheduler.enqueue({ key: "old", priority: "FAR", createdAtTick: 1, payload: 1 }), true);
+  assert.equal(scheduler.enqueue({ key: "keep", priority: "FAR", createdAtTick: 10, payload: 2 }), true);
+  assert.equal(scheduler.cancel("old"), true);
+  assert.equal(scheduler.cancel("missing"), false);
+  assert.equal(scheduler.rejectStale(20), 1);
+  assert.equal(scheduler.size, 0);
+  assert.ok(scheduler.stats().staleRejected >= 1);
+});
+
+test("continuous critical work dominates lower priority work without queue explosion", () => {
+  const scheduler = new BoundedPriorityScheduler<number>({ maxQueue: 32, maxPerWindow: 1 });
+  for (let tick = 0; tick < 100; tick++) {
+    scheduler.enqueue({ key: `critical-${tick}`, priority: "CRITICAL", createdAtTick: tick, payload: tick });
+    scheduler.enqueue({ key: `low-${tick}`, priority: "DECORATIVE", createdAtTick: tick, payload: tick });
+  }
+  assert.equal(scheduler.size, 32);
+  let first = "";
+  scheduler.drain(item => { first = item.key; }, 1, 100);
+  assert.ok(first.startsWith("critical-"));
+});
+
+test("scheduler execution instrumentation records real handler duration", () => {
+  const scheduler = new BoundedPriorityScheduler<number>({ maxQueue: 4, maxPerWindow: 2 });
+  scheduler.enqueue({ key: "x", priority: "CRITICAL", createdAtTick: 1, payload: 1 });
+  scheduler.drain(() => { for (let i = 0; i < 10000; i++) Math.sqrt(i); }, 1, 1);
+  assert.equal(scheduler.stats().executed, 1);
+  assert.ok(scheduler.stats().executionTimeMsTotal >= 0);
+});
+
+test("playability protects all required gameplay classes from degrade", () => {
+  const tracker = new GameplayPressureTracker(3);
+  const shield = new PlayabilityShield(tracker);
+  const protectedKinds = ["MOVEMENT","INPUT","CAMERA","COMBAT","INVENTORY","ITEM_USE","BLOCK_INTERACTION","BLOCK_BREAK","BLOCK_PLACE","NEAR_ENTITY","PROJECTILE","BOSS","PVP","IMPORTANT_EVENT","REDSTONE"] as const;
+  tracker.mark("COMBAT", 0);
+  for (const kind of protectedKinds) assert.equal(shield.shouldDegrade(kind, 1), false);
+  assert.equal(shield.shouldDegrade("FAR", 1), true);
+  assert.equal(shield.shouldDegrade("DECORATIVE", 1), true);
+  assert.equal(shield.shouldDegrade("FAR", 4), false);
+  assert.equal(shield.priorityFor("CAMERA"), "CRITICAL");
+  assert.equal(shield.priorityFor("BOSS"), "CRITICAL");
+  assert.equal(shield.isBossTypeId("minecraft:wither"), true);
+  assert.equal(shield.isBossTypeId("minecraft:zombie"), false);
+});
+
+test("governor works without synthetic memory input", () => {
+  const governor = new AdaptivePerformanceGovernor();
+  assert.equal(governor.evaluate({ queueRatio: 1, workRatio: 1, localGameplayActive: true }), "CRITICAL");
+  assert.equal(governor.workloadPolicy().allowFar, false);
+  assert.equal(governor.workloadPolicy().allowDecorative, false);
+  assert.equal(governor.workloadPolicy().executionBudget, 2);
+});
+
+test("all five adapters and seven attack types converge to central pipeline", () => {
+  const api = makeApi();
+  const adapters: WeaponAdapter[] = [
+    new SwordAdapter(weapon("sword", "MELEE")),
+    new AxeAdapter(weapon("axe", "HEAVY_MELEE")),
+    new SpearAdapter(weapon("spear", "THRUST")),
+    new BowAdapter(weapon("bow", "RANGED", { durabilityCost: 0 })),
+    new CustomWeaponAdapter(weapon("custom", "SPECIAL")),
+  ];
+  const allTypes: WeaponDefinition["attackType"][] = ["MELEE", "HEAVY_MELEE", "THRUST", "SWEEP", "RANGED", "PROJECTILE", "SPECIAL"];
+  for (const [index, attackType] of allTypes.entries()) {
+    const adapter = attackType === "MELEE" ? adapters[0]
+      : attackType === "HEAVY_MELEE" ? adapters[1]
+      : attackType === "THRUST" ? adapters[2]
+      : attackType === "RANGED" ? adapters[3]
+      : new CustomWeaponAdapter(weapon(`custom-${index}`, attackType, { durabilityCost: 0 }));
+    const result = api.executeAdapter(adapter, { ...context, tick: 20 + index }, fullPort());
+    assert.equal(result.accepted, true);
+    assert.equal(result.armorStatus, "VERIFIED");
+    assert.equal(result.resistanceStatus, "VERIFIED");
+    assert.equal(result.deathStatus, "VERIFIED");
+    assert.equal(result.lootStatus, "VERIFIED");
+    assert.equal(result.xpStatus, "VERIFIED");
+  }
+});
+
+test("accepted combat results cannot contain unverified mandatory stages", () => {
+  const api = makeApi();
+  const adapter = new SwordAdapter(weapon("sword", "MELEE"));
+  const port: CombatExecutionPort = {
+    resolveTarget: () => ({ id: "t", entity: {}, distance: 2 }),
+    applyDamage: () => true,
+    applyKnockback: () => undefined,
+  };
+  const result = api.executeAdapter(adapter, context, port);
+  assert.equal(result.accepted, false);
+  assert.equal(result.reason, "ARMOR_CAPABILITY_UNVERIFIED");
+});
+
+test("full combat pipeline keeps base modified final damage distinct", () => {
+  const api = makeApi();
+  const adapter = new SwordAdapter(weapon("sword", "MELEE", {
+    modifiers: [{ id: "strength", multiplier: 2 }],
+    effects: [{ id: "slowness", durationTicks: 20, amplifier: 1 }],
+  }));
+  const calls: string[] = [];
+  const result = api.executeAdapter(adapter, { ...context, criticalEligible: true }, fullPort(calls));
+  assert.equal(result.accepted, true);
+  assert.equal(result.baseDamage, 10);
+  assert.equal(result.modifiedDamage, 30);
+  assert.equal(result.finalDamage, 25);
+  assert.deepEqual(calls, ["resolve", "armor", "resistance", "damage:25", "knockback:2", "effect", "durability", "posthit"]);
+});
+
+test("weapon validation rejects missing and mismatched registration", () => {
+  const registry = new WeaponRegistry();
+  const api = new UniversalAttackAPI(new CooldownResolver(), new CriticalResolver(), new DamageResolver(), new KnockbackResolver(), registry);
+  const request = new SwordAdapter(weapon("sword", "MELEE")).toAttackRequest(context);
+  assert.equal(api.execute(request, fullPort()).reason, "WEAPON_UNREGISTERED");
+  assert.equal(registry.register(weapon("sword", "MELEE")), true);
+  assert.equal(api.execute({ ...request, attackType: "PROJECTILE" }, fullPort()).reason, "WEAPON_ATTACK_TYPE_MISMATCH");
+});
+
+test("combat rejects malformed target range modifier effect and tick before mutation", () => {
+  const api = makeApi();
+  const base = new SwordAdapter(weapon("sword", "MELEE")).toAttackRequest(context);
+  assert.equal(api.executeAdapter(new SwordAdapter(weapon("sword", "MELEE")), { ...context, tick: 1 }, fullPort()).accepted, true);
+  assert.equal(api.execute({ ...base, tick: 11, range: -1 }, fullPort()).reason, "INVALID_RANGE");
+  assert.equal(api.execute({ ...base, tick: 11, effects: [{ id: "", durationTicks: 1, amplifier: 0 }] }, fullPort()).reason, "EFFECT_INVALID");
+  assert.equal(api.execute({ ...base, tick: 11, modifiers: [{ id: "", multiplier: 2 }] }, fullPort()).reason, "MODIFIER_INVALID");
+  assert.equal(api.execute({ ...base, tick: 11, direction: { x: Number.NaN, y: 0, z: 0 } }, fullPort()).reason, "DIRECTION_INVALID");
+});
+
+test("combat range and target validation stop mutation", () => {
+  const api = makeApi();
+  const adapter = new SwordAdapter(weapon("sword", "MELEE", { durabilityCost: 0 }));
+  const port: CombatExecutionPort = {
+    resolveTarget: () => ({ id: "wrong", entity: {}, distance: 1 }),
+    applyDamage: () => { throw new Error("damage must not run"); },
+    applyKnockback: () => { throw new Error("knockback must not run"); },
+  };
+  assert.equal(api.executeAdapter(adapter, context, port).reason, "ARMOR_CAPABILITY_UNVERIFIED");
+});
+
+test("cooldown blocks second attack after a fully verified execution", () => {
+  const api = makeApi();
+  const adapter = new SwordAdapter(weapon("sword", "MELEE", { durabilityCost: 0 }));
+  assert.equal(api.executeAdapter(adapter, context, fullPort()).accepted, true);
+  assert.equal(api.executeAdapter(adapter, { ...context, tick: 11 }, fullPort()).reason, "COOLDOWN");
+});
