@@ -182,8 +182,10 @@ export function installRuntimeEventWiring(): void {
   world.afterEvents.projectileHitEntity.subscribe(event => {
     rememberEntity(event.source);
     const hit = event.getEntityHit();
-    rememberEntity(hit.entity);
-    if (rememberProjectileEvent(event.projectile.id, hit.entity.id, system.currentTick)) mark("PROJECTILE");
+    const hitEntity = hit.entity;
+    if (!hitEntity) return;
+    rememberEntity(hitEntity);
+    if (rememberProjectileEvent(event.projectile.id, hitEntity.id, system.currentTick)) mark("PROJECTILE");
   });
   world.afterEvents.projectileHitBlock.subscribe(event => {
     rememberEntity(event.source);
@@ -279,7 +281,8 @@ export class BedrockCombatPort implements CombatExecutionPort {
       const nextDamage = durability.damage + Math.max(0, request.durabilityCost);
       if (nextDamage >= durability.maxDurability) return equipment.setEquipment(EquipmentSlot.Mainhand, undefined);
       durability.damage = nextDamage;
-      return slot.setItem(item);
+      slot.setItem(item);
+      return true;
     } catch (error) { recordRuntimeError(error); return false; }
   }
 
