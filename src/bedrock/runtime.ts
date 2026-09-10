@@ -25,7 +25,7 @@ export const SCRIPT_API_CAPABILITIES: readonly RuntimeCapability[] = [
 const MAX_TRACKED_ENTITIES = 2048;
 const trackedEntities = new Map<string, Entity>();
 
-function rememberEntity(entity: Entity): void {
+function rememberEntity(entity: Entity | undefined): void {
   if (!entity?.id || !entity.isValid) return;
   if (!trackedEntities.has(entity.id) && trackedEntities.size >= MAX_TRACKED_ENTITIES) return;
   trackedEntities.set(entity.id, entity);
@@ -95,18 +95,20 @@ export class BedrockCombatPort implements CombatExecutionPort {
   }
 
   public applyDamage(target: ResolvedCombatTarget, damage: number): boolean {
+    const entity = target.entity as Entity;
     try {
-      return target.entity.isValid && target.entity.applyDamage(damage);
+      return entity.isValid && entity.applyDamage(damage);
     } catch {
       return false;
     }
   }
 
   public applyKnockback(target: ResolvedCombatTarget, impulse: Vec3): void {
-    if (!target.entity.isValid) return;
+    const entity = target.entity as Entity;
+    if (!entity.isValid) return;
     const vector: Vector3 = { x: impulse.x, y: impulse.y, z: impulse.z };
     try {
-      target.entity.applyImpulse(vector);
+      entity.applyImpulse(vector);
     } catch {
       // Runtime failure remains failure; no synthetic success.
     }
