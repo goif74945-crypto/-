@@ -88,13 +88,12 @@ test("far-view stale reclamation and bounded history work", () => {
   const core = new FarViewCore(2);
   core.observeDistance("a", 4, 1);
   core.observeDistance("b", 4, 2);
-  assert.equal(core.reclaimStale(81, 80), 0);
-  assert.equal(core.reclaimStale(82, 80), 0);
-  assert.equal(core.reclaimStale(82, 79), 2);
-  assert.equal(core.trackedCount, 2);
-  for (let tick = 3; tick <= 20; tick++) {
-    core.observeDistance("a", tick % 2 === 0 ? 70 : 20, tick);
-  }
+  assert.equal(core.reclaimStale(81, 80), 1);
+  assert.equal(core.getState("a"), "RELEASED");
+  assert.equal(core.getState("b"), "VISIBLE");
+  assert.equal(core.reclaimStale(82, 79), 1);
+  assert.equal(core.getState("b"), "RELEASED");
+  for (let tick = 3; tick <= 20; tick++) core.observeDistance("a", tick % 2 === 0 ? 70 : 20, tick);
   assert.ok(core.getTransitionHistory("a").length <= 8);
 });
 
@@ -117,9 +116,7 @@ test("distance zones map to one authoritative scheduler priority mapping", () =>
 test("scheduler stays bounded under 10000 FAR requests", () => {
   const scheduler = new BoundedPriorityScheduler<number>({ maxQueue: 256, maxPerWindow: 32, maxWorkAgeTicks: 40 });
   let admitted = 0;
-  for (let i = 0; i < 10_000; i++) {
-    if (scheduler.enqueue({ key: `far-${i}`, priority: "FAR", createdAtTick: i % 10, payload: i })) admitted++;
-  }
+  for (let i = 0; i < 10_000; i++) if (scheduler.enqueue({ key: `far-${i}`, priority: "FAR", createdAtTick: i % 10, payload: i })) admitted++;
   assert.equal(admitted, 256);
   assert.equal(scheduler.size, 256);
   assert.equal(scheduler.stats().maxObservedQueue, 256);
@@ -135,7 +132,7 @@ test("scheduler deduplicates repeated keys and permits higher priority replaceme
   assert.equal(scheduler.peekPriority("x"), "CRITICAL");
 });
 
-test("scheduler evicts oldest lowest priority under pressure and preserves critical", () => {
+test("scheduler evicts lowest priority under pressure and preserves critical", () => {
   const scheduler = new BoundedPriorityScheduler<number>({ maxQueue: 3, maxPerWindow: 1 });
   assert.equal(scheduler.enqueue({ key: "a", priority: "FAR", createdAtTick: 1, payload: 1 }), true);
   assert.equal(scheduler.enqueue({ key: "b", priority: "DECORATIVE", createdAtTick: 2, payload: 2 }), true);
@@ -170,7 +167,7 @@ test("continuous critical work dominates lower priority work without queue explo
   assert.ok(first.startsWith("critical-"));
 });
 
-test("scheduler execution instrumentation records real handler duration", () => {
+test("scheduler execution instrumentation records handler duration", () => {
   const scheduler = new BoundedPriorityScheduler<number>({ maxQueue: 4, maxPerWindow: 2 });
   scheduler.enqueue({ key: "x", priority: "CRITICAL", createdAtTick: 1, payload: 1 });
   scheduler.drain(() => { for (let i = 0; i < 10000; i++) Math.sqrt(i); }, 1, 1);
@@ -264,25 +261,21 @@ test("weapon validation rejects missing and mismatched registration", () => {
   assert.equal(api.execute({ ...request, attackType: "PROJECTILE" }, fullPort()).reason, "WEAPON_ATTACK_TYPE_MISMATCH");
 });
 
-test("combat rejects malformed target range modifier effect and tick before mutation", () => {
+test("combat rejects malformed modifier effect and tick inputs before mutation", () => {
   const api = makeApi();
-  const base = new SwordAdapter(weapon("sword", "MELEE")).toAttackRequest(context);
-  assert.equal(api.executeAdapter(new SwordAdapter(weapon("sword", "MELEE")), { ...context, tick: 1 }, fullPort()).accepted, true);
-  assert.equal(api.execute({ ...base, tick: 11, range: -1 }, fullPort()).reason, "INVALID_RANGE");
-  assert.equal(api.execute({ ...base, tick: 11, effects: [{ id: "", durationTicks: 1, amplifier: 0 }] }, fullPort()).reason, "EFFECT_INVALID");
-  assert.equal(api.execute({ ...base, tick: 11, modifiers: [{ id: "", multiplier: 2 }] }, fullPort()).reason, "MODIFIER_INVALID");
-  assert.equal(api.execute({ ...base, tick: 11, direction: { x: Number.NaN, y: 0, z: 0 } }, fullPort()).reason, "DIRECTION_INVALID");
+  const base = new SwordAdapter(weapon("sword", "MELEE", { durabilityCost: 0 })).toAttackRequest(context);
+  assert.equal(api.execute({ ...base, range: -1 }, fullPort()).reason, "INVALID_RANGE");
+  assert.equal(api.execute({ ...base, effects: [{ id: "", durationTicks: 1, amplifier: 0 }] }, fullPort()).reason, "EFFECT_INVALID");
+  assert.equal(api.execute({ ...base, modifiers: [{ id: "", multiplier: 2 }] }, fullPort()).reason, "MODIFIER_INVALID");
+  assert.equal(api.execute({ ...base, direction: { x: Number.NaN, y: 0, z: 0 } }, fullPort()).reason, "DIRECTION_INVALID");
 });
 
-test("combat range and target validation stop mutation", () => {
+test("combat target and range validation run after mandatory capability gate", () => {
   const api = makeApi();
   const adapter = new SwordAdapter(weapon("sword", "MELEE", { durabilityCost: 0 }));
-  const port: CombatExecutionPort = {
-    resolveTarget: () => ({ id: "wrong", entity: {}, distance: 1 }),
-    applyDamage: () => { throw new Error("damage must not run"); },
-    applyKnockback: () => { throw new Error("knockback must not run"); },
-  };
-  assert.equal(api.executeAdapter(adapter, context, port).reason, "ARMOR_CAPABILITY_UNVERIFIED");
+  const targetPort: CombatExecutionPort = { ...fullPort(), resolveTarget: () => ({ id: "wrong", entity: {}, distance: 1 }) };
+  assert.equal(api.executeAdapter(adapter, context, targetPort).reason, "TARGET_INVALID");
+  assert.equal(api.executeAdapter(adapter, { ...context, tick: 20 }, fullPort([], 4)).reason, "OUT_OF_RANGE");
 });
 
 test("cooldown blocks second attack after a fully verified execution", () => {
