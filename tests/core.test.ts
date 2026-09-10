@@ -62,11 +62,7 @@ test("far-view rejects illegal transitions and non-monotonic ticks", () => {
 
 test("far-view exhaustive boundaries", () => {
   const core = new FarViewCore();
-  const cases: readonly (readonly [number, string])[] = [
-    [0, "0-8"], [7.999, "0-8"], [8, "8-16"], [15.999, "8-16"],
-    [16, "16-32"], [31.999, "16-32"], [32, "32-64"], [63.999, "32-64"],
-    [64, "64-100"], [100, "64-100"],
-  ];
+  const cases: readonly (readonly [number, string])[] = [[0, "0-8"], [7.999, "0-8"], [8, "8-16"], [15.999, "8-16"], [16, "16-32"], [31.999, "16-32"], [32, "32-64"], [63.999, "32-64"], [64, "64-100"], [100, "64-100"]];
   for (const [value, zone] of cases) assert.equal(core.classifyChunkDistance(value).zone, zone);
   for (const value of [100.001, -1, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) assert.equal(core.classifyChunkDistance(value).zone, "OUT_OF_RANGE");
 });
@@ -194,20 +190,14 @@ test("governor works without synthetic memory input", () => {
 
 test("all five adapters and seven attack types converge to central pipeline", () => {
   const api = makeApi();
-  const adapters: WeaponAdapter[] = [
-    new SwordAdapter(weapon("sword", "MELEE")),
-    new AxeAdapter(weapon("axe", "HEAVY_MELEE")),
-    new SpearAdapter(weapon("spear", "THRUST")),
-    new BowAdapter(weapon("bow", "RANGED", { durabilityCost: 0 })),
-    new CustomWeaponAdapter(weapon("custom", "SPECIAL")),
-  ];
+  const adapters: WeaponAdapter[] = [new SwordAdapter(weapon("sword", "MELEE")), new AxeAdapter(weapon("axe", "HEAVY_MELEE")), new SpearAdapter(weapon("spear", "THRUST")), new BowAdapter(weapon("bow", "RANGED", { durabilityCost: 0 })), new CustomWeaponAdapter(weapon("custom", "SPECIAL"))];
   const allTypes: WeaponDefinition["attackType"][] = ["MELEE", "HEAVY_MELEE", "THRUST", "SWEEP", "RANGED", "PROJECTILE", "SPECIAL"];
   for (const [index, attackType] of allTypes.entries()) {
     let adapter: WeaponAdapter;
-    if (attackType === "MELEE") adapter = adapters[0];
-    else if (attackType === "HEAVY_MELEE") adapter = adapters[1];
-    else if (attackType === "THRUST") adapter = adapters[2];
-    else if (attackType === "RANGED") adapter = adapters[3];
+    if (attackType === "MELEE") adapter = adapters[0]!;
+    else if (attackType === "HEAVY_MELEE") adapter = adapters[1]!;
+    else if (attackType === "THRUST") adapter = adapters[2]!;
+    else if (attackType === "RANGED") adapter = adapters[3]!;
     else adapter = new CustomWeaponAdapter(weapon(`custom-${index}`, attackType, { durabilityCost: 0 }));
     const result = api.executeAdapter(adapter, { ...context, tick: 20 + index }, fullPort());
     assert.equal(result.accepted, true);
@@ -230,10 +220,7 @@ test("accepted combat results cannot contain unverified mandatory stages", () =>
 
 test("full combat pipeline keeps base modified final damage distinct", () => {
   const api = makeApi();
-  const adapter = new SwordAdapter(weapon("sword", "MELEE", {
-    modifiers: [{ id: "strength", multiplier: 2 }],
-    effects: [{ id: "slowness", durationTicks: 20, amplifier: 1 }],
-  }));
+  const adapter = new SwordAdapter(weapon("sword", "MELEE", { modifiers: [{ id: "strength", multiplier: 2 }], effects: [{ id: "slowness", durationTicks: 20, amplifier: 1 }] }));
   const calls: string[] = [];
   const result = api.executeAdapter(adapter, { ...context, criticalEligible: true }, fullPort(calls));
   assert.equal(result.accepted, true);
