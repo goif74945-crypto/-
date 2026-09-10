@@ -7,11 +7,10 @@ import {
   type Entity,
   type Player,
   type Vector3,
-  type ItemStack,
 } from "@minecraft/server";
 import type { AttackRequest, CombatEffect, Vec3 } from "../core/types.js";
 import { GameplayPressureTracker, type GameplayClass } from "../core/playability.js";
-import type { CombatExecutionPort, ResolvedCombatTarget, CombatStageStatus } from "../core/combat.js";
+import type { CombatExecutionPort, ResolvedCombatTarget } from "../core/combat.js";
 
 export type RuntimeEvidenceStatus = "PASS" | "FAIL" | "NOT_VERIFIED" | "NOT_AVAILABLE" | "UNSUPPORTED";
 
@@ -43,7 +42,9 @@ export interface RuntimeMetrics {
 }
 
 export const SCRIPT_API_CAPABILITIES: readonly RuntimeCapability[] = [
+  { name: "system.run", documented: true, targetBindingVerified: false },
   { name: "system.runInterval", documented: true, targetBindingVerified: false },
+  { name: "system.clearRun", documented: true, targetBindingVerified: false },
   { name: "world.afterEvents.playerButtonInput", documented: true, targetBindingVerified: false },
   { name: "world.afterEvents.playerBreakBlock", documented: true, targetBindingVerified: false },
   { name: "world.afterEvents.playerPlaceBlock", documented: true, targetBindingVerified: false },
@@ -81,9 +82,7 @@ function rememberEntity(entity: Entity | undefined): void {
 }
 
 function pruneTrackedEntities(): void {
-  for (const [id, entity] of trackedEntities) {
-    if (!entity.isValid) trackedEntities.delete(id);
-  }
+  for (const [id, entity] of trackedEntities) if (!entity.isValid) trackedEntities.delete(id);
 }
 
 function recordRuntimeError(error: unknown): void {
@@ -140,7 +139,7 @@ export function readClientCapabilities(player: Player): ClientCapabilitySnapshot
   }
 }
 
-export function samplePlayerPressure(tick: number): void {
+export function samplePlayerPressure(_tick: number): void {
   let inspected = 0;
   try {
     for (const player of world.getAllPlayers()) {
@@ -159,16 +158,11 @@ export function samplePlayerPressure(tick: number): void {
   } catch (error) {
     recordRuntimeError(error);
   }
-  void tick;
 }
 
 export function installRuntimeEventWiring(): void {
   world.afterEvents.playerSpawn.subscribe(event => rememberEntity(event.player));
-  world.afterEvents.playerButtonInput.subscribe(event => {
-    rememberEntity(event.player);
-    mark("INPUT");
-    mark("MOVEMENT");
-  });
+  world.afterEvents.playerButtonInput.subscribe(event => { rememberEntity(event.player); mark("INPUT"); mark("MOVEMENT"); });
   world.afterEvents.playerBreakBlock.subscribe(event => { rememberEntity(event.player); mark("BLOCK_BREAK"); });
   world.afterEvents.playerStartBreakingBlock.subscribe(event => { rememberEntity(event.player); mark("BLOCK_BREAK"); });
   world.afterEvents.playerPlaceBlock.subscribe(event => { rememberEntity(event.player); mark("BLOCK_PLACE"); });
@@ -183,7 +177,7 @@ export function installRuntimeEventWiring(): void {
     mark("COMBAT");
     mark("NEAR_ENTITY");
     if (isBossEntity(event.hitEntity)) mark("BOSS");
-    if (event.damagingEntity.typeId.startsWith("minecraft:player") && event.hitEntity.typeId.startsWith("minecraft:player")) mark("PVP");
+    if (event.damagingEntity.typeId === "minecraft:player" && event.hitEntity.typeId === "minecraft:player") mark("PVP");
   });
   world.afterEvents.projectileHitEntity.subscribe(event => {
     rememberEntity(event.source);
@@ -235,28 +229,20 @@ export class BedrockCombatPort implements CombatExecutionPort {
 
   public applyDamage(target: ResolvedCombatTarget, damage: number): boolean {
     const entity = target.entity as Entity;
-    try {
-      return entity.isValid && entity.applyDamage(damage);
-    } catch (error) {
-      recordRuntimeError(error);
-      return false;
-    }
+    try { return entity.isValid && entity.applyDamage(damage); }
+    catch (error) { recordRuntimeError(error); return false; }
   }
 
   public applyKnockback(target: ResolvedCombatTarget, impulse: Vec3): void {
     const entity = target.entity as Entity;
     if (!entity.isValid) return;
     const vector: Vector3 = { x: impulse.x, y: impulse.y, z: impulse.z };
-    try {
-      entity.applyImpulse(vector);
-    } catch (error) {
-      recordRuntimeError(error);
-    }
+    try { entity.applyImpulse(vector); }
+    catch (error) { recordRuntimeError(error); }
   }
 
   public mitigateArmorDamage(target: ResolvedCombatTarget, _request: AttackRequest, incomingDamage: number): number {
-    const entity = target.entity as Entity;
-    const equippable = entity.getComponent(EntityComponentTypes.Equippable);
+    const equippable = (target.entity as Entity).getComponent(EntityComponentTypes.Equippable);
     if (!equippable) throw new Error("ARMOR_COMPONENT_UNAVAILABLE");
     const armor = Math.max(0, Math.min(100, equippable.totalArmor));
     const toughness = Math.max(0, Math.min(100, equippable.totalToughness));
@@ -265,23 +251,18 @@ export class BedrockCombatPort implements CombatExecutionPort {
   }
 
   public mitigateResistanceDamage(target: ResolvedCombatTarget, _request: AttackRequest, incomingDamage: number): number {
-    const entity = target.entity as Entity;
-    const resistance = entity.getEffect("resistance");
+    const resistance = (target.entity as Entity).getEffect("resistance");
     if (!resistance) return incomingDamage;
     const reduction = Math.min(0.8, 0.2 * (resistance.amplifier + 1));
     return Math.max(0, incomingDamage * (1 - reduction));
   }
 
   public applyEffect(target: ResolvedCombatTarget, effect: CombatEffect): boolean {
-    const entity = target.entity as Entity;
     if (effect.durationTicks < 1 || effect.durationTicks > 20_000_000) return false;
     try {
-      entity.addEffect(effect.id, effect.durationTicks, { amplifier: effect.amplifier, showParticles: true });
+      (target.entity as Entity).addEffect(effect.id, effect.durationTicks, { amplifier: effect.amplifier, showParticles: true });
       return true;
-    } catch (error) {
-      recordRuntimeError(error);
-      return false;
-    }
+    } catch (error) { recordRuntimeError(error); return false; }
   }
 
   public applyDurability(request: AttackRequest): boolean {
@@ -299,27 +280,11 @@ export class BedrockCombatPort implements CombatExecutionPort {
       if (nextDamage >= durability.maxDurability) return equipment.setEquipment(EquipmentSlot.Mainhand, undefined);
       durability.damage = nextDamage;
       return slot.setItem(item);
-    } catch (error) {
-      recordRuntimeError(error);
-      return false;
-    }
+    } catch (error) { recordRuntimeError(error); return false; }
   }
 
   public getRuntimeMetrics(): RuntimeMetrics {
-    return {
-      trackedEntities: trackedEntityCount(),
-      runtimeErrors: runtimeErrors.length,
-      projectileEventsAccepted,
-      duplicateProjectileEventsRejected,
-    };
-  }
-
-  private distanceToAttacker(request: AttackRequest, target: Entity): number {
-    const attacker = trackedEntities.get(request.attackerId);
-    if (!attacker?.isValid || !target.isValid) return Number.POSITIVE_INFINITY;
-    const a = attacker.location;
-    const b = target.location;
-    return Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
+    return { trackedEntities: trackedEntityCount(), runtimeErrors: runtimeErrors.length, projectileEventsAccepted, duplicateProjectileEventsRejected };
   }
 }
 
@@ -330,15 +295,26 @@ export function trackedEntityCount(): number {
 
 export function probeRuntime(player: Player): RuntimeProbeResult {
   const checks: Record<string, RuntimeEvidenceStatus> = {};
-  checks["player.valid"] = player.isValid ? "PASS" : "FAIL";
   try {
+    checks["player.valid"] = player.isValid ? "PASS" : "FAIL";
     checks["system.currentTick"] = Number.isInteger(system.currentTick) ? "PASS" : "FAIL";
-    checks["player.getViewDirection"] = Number.isFinite(player.getViewDirection().x) ? "PASS" : "FAIL";
+    const runId = system.run(() => undefined);
+    system.clearRun(runId);
+    checks["system.run+clearRun"] = "PASS";
+    const direction = player.getViewDirection();
+    checks["player.getViewDirection"] = Number.isFinite(direction.x) && Number.isFinite(direction.y) && Number.isFinite(direction.z) ? "PASS" : "FAIL";
     checks["player.clientSystemInfo.maxRenderDistance"] = Number.isFinite(player.clientSystemInfo.maxRenderDistance) ? "PASS" : "NOT_AVAILABLE";
     checks["player.camera"] = player.camera.isValid ? "PASS" : "FAIL";
     checks["player.equippable"] = player.getComponent(EntityComponentTypes.Equippable) ? "PASS" : "NOT_AVAILABLE";
     checks["player.inventory"] = player.getComponent(EntityComponentTypes.Inventory) ? "PASS" : "NOT_AVAILABLE";
-    checks["entity.getEffect"] = typeof player.getEffect === "function" ? "PASS" : "FAIL";
+    player.getEffect("resistance");
+    checks["entity.getEffect"] = "PASS";
+    const projectileCallback = () => undefined;
+    world.afterEvents.projectileHitEntity.subscribe(projectileCallback);
+    world.afterEvents.projectileHitEntity.unsubscribe(projectileCallback);
+    const deathCallback = () => undefined;
+    world.afterEvents.entityDie.subscribe(deathCallback);
+    world.afterEvents.entityDie.unsubscribe(deathCallback);
     checks["event.projectileHitEntity.binding"] = "PASS";
     checks["event.entityDie.binding"] = "PASS";
   } catch (error) {
