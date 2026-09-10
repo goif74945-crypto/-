@@ -294,6 +294,7 @@ export class UniversalAttackAPI {
       critical: false,
       knockback: { x: 0, y: 0, z: 0 },
       cooldownReadyAt: request.tick,
+      durabilityCost: 0,
       armorStatus: "NOT_VERIFIED",
       resistanceStatus: "NOT_VERIFIED",
       effectStatuses: commit.effectStatuses,
