@@ -16,7 +16,7 @@ export const SCRIPT_API_CAPABILITIES: readonly RuntimeCapability[] = [
   { name: "world.afterEvents.playerPlaceBlock", documented: true, targetBindingVerified: false },
   { name: "world.afterEvents.itemUse", documented: true, targetBindingVerified: false },
   { name: "world.afterEvents.entityHitEntity", documented: true, targetBindingVerified: false },
-  { name: "world.afterEvents.entitySpawn/entityLoad/entityDie", documented: true, targetBindingVerified: false },
+  { name: "world.afterEvents.projectileHitEntity/projectileHitBlock", documented: true, targetBindingVerified: false },
   { name: "Entity.getEntitiesFromViewDirection", documented: true, targetBindingVerified: false },
   { name: "Entity.applyDamage", documented: true, targetBindingVerified: false },
   { name: "Entity.applyImpulse", documented: true, targetBindingVerified: false },
@@ -31,8 +31,10 @@ function rememberEntity(entity: Entity | undefined): void {
   trackedEntities.set(entity.id, entity);
 }
 
-function forgetEntity(entity: Entity): void {
-  if (entity?.id) trackedEntities.delete(entity.id);
+function pruneTrackedEntities(): void {
+  for (const [id, entity] of trackedEntities) {
+    if (!entity.isValid) trackedEntities.delete(id);
+  }
 }
 
 export const gameplayPressure = new GameplayPressureTracker();
@@ -42,11 +44,7 @@ function mark(kind: GameplayClass): void {
 }
 
 export function installRuntimeEventWiring(): void {
-  world.afterEvents.entitySpawn.subscribe(event => rememberEntity(event.entity));
-  world.afterEvents.entityLoad.subscribe(event => rememberEntity(event.entity));
-  world.afterEvents.entityDie.subscribe(event => forgetEntity(event.deadEntity));
   world.afterEvents.playerSpawn.subscribe(event => rememberEntity(event.player));
-
   world.afterEvents.playerButtonInput.subscribe(event => {
     rememberEntity(event.player);
     mark("INPUT");
@@ -77,6 +75,7 @@ export function installRuntimeEventWiring(): void {
 
 export class BedrockCombatPort implements CombatExecutionPort {
   public resolveTarget(request: AttackRequest): ResolvedCombatTarget | undefined {
+    pruneTrackedEntities();
     const direct = trackedEntities.get(request.targetId);
     if (direct?.isValid) return { id: direct.id, entity: direct, distance: this.distanceToAttacker(request, direct) };
 
@@ -128,5 +127,6 @@ export function installRuntimeHeartbeat(onTick: (tick: number) => void): void {
 }
 
 export function trackedEntityCount(): number {
+  pruneTrackedEntities();
   return trackedEntities.size;
 }
