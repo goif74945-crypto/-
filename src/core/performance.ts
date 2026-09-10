@@ -19,6 +19,7 @@ export interface SchedulerStats {
   readonly admitted: number;
   readonly rejected: number;
   readonly executed: number;
+  readonly failed: number;
   readonly deferred: number;
   readonly cancelled: number;
   readonly staleRejected: number;
@@ -34,6 +35,7 @@ export class BoundedPriorityScheduler<T> {
     admitted: 0,
     rejected: 0,
     executed: 0,
+    failed: 0,
     deferred: 0,
     cancelled: 0,
     staleRejected: 0,
@@ -101,9 +103,9 @@ export class BoundedPriorityScheduler<T> {
   }
 
   public drain(handler: (item: WorkItem<T>) => void, maxItems = this.limits.maxPerWindow, currentTick = Number.POSITIVE_INFINITY): number {
-    if (!Number.isInteger(maxItems) || maxItems < 0) maxItems = 0;
+    const safeMaxItems = Number.isFinite(maxItems) && maxItems >= 0 ? Math.floor(maxItems) : 0;
     this.pruneStale(currentTick);
-    const limit = Math.min(this.limits.maxPerWindow, Math.floor(maxItems));
+    const limit = Math.min(this.limits.maxPerWindow, safeMaxItems);
     const batch = [...this.queue.values()]
       .sort((a, b) => PRIORITY[b.priority] - PRIORITY[a.priority] || a.createdAtTick - b.createdAtTick || a.key.localeCompare(b.key))
       .slice(0, limit);
@@ -111,28 +113,27 @@ export class BoundedPriorityScheduler<T> {
     for (const item of batch) {
       this.queue.delete(item.key);
       const started = Date.now();
-      handler(item);
-      const elapsed = Math.max(0, Date.now() - started);
-      this.statsValue.executionTimeMsTotal += elapsed;
-      this.statsValue.executionTimeMsMax = Math.max(this.statsValue.executionTimeMsMax, elapsed);
-      this.statsValue.executed++;
+      try {
+        handler(item);
+        this.statsValue.executed++;
+      } catch {
+        this.statsValue.failed++;
+      } finally {
+        const elapsed = Math.max(0, Date.now() - started);
+        this.statsValue.executionTimeMsTotal += elapsed;
+        this.statsValue.executionTimeMsMax = Math.max(this.statsValue.executionTimeMsMax, elapsed);
+      }
     }
 
     this.statsValue.deferred += this.queue.size;
     return batch.length;
   }
 
-  public get size(): number {
-    return this.queue.size;
-  }
+  public get size(): number { return this.queue.size; }
 
-  public stats(): SchedulerStats {
-    return { ...this.statsValue };
-  }
+  public stats(): SchedulerStats { return { ...this.statsValue }; }
 
-  public peekPriority(key: string): Priority | undefined {
-    return this.queue.get(key)?.priority;
-  }
+  public peekPriority(key: string): Priority | undefined { return this.queue.get(key)?.priority; }
 
   public rejectStale(currentTick: number): number {
     if (!Number.isInteger(currentTick) || currentTick < 0) throw new Error("currentTick must be a non-negative integer");
