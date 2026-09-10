@@ -19,12 +19,14 @@ const NEXT_STATES: Record<ChunkState, readonly ChunkState[]> = {
   RELEASED: ["UNKNOWN"],
 };
 
+const MAX_HISTORY_PER_KEY = 8;
+
 export class FarViewCore {
   private readonly chunks = new Map<string, ChunkRecord>();
   private readonly history = new Map<string, ChunkState[]>();
 
   public constructor(private readonly maxTrackedChunks = 256) {
-    if (maxTrackedChunks <= 0) throw new Error("maxTrackedChunks must be positive");
+    if (!Number.isInteger(maxTrackedChunks) || maxTrackedChunks <= 0) throw new Error("maxTrackedChunks must be positive");
   }
 
   public classifyChunkDistance(distanceInChunks: number): FarViewDecision {
@@ -40,6 +42,7 @@ export class FarViewCore {
   }
 
   public observeDistance(key: string, distanceInChunks: number, tick: number): FarViewDecision {
+    this.validateKeyAndTick(key, tick);
     const decision = this.classifyChunkDistance(distanceInChunks);
     if (decision.zone === "OUT_OF_RANGE") {
       this.release(key, tick);
@@ -52,9 +55,14 @@ export class FarViewCore {
     if (current === undefined) {
       if (!this.transition(key, "DISCOVERED", tick)) return decision;
       if (!this.transition(key, "VISIBLE", tick)) return decision;
-      if (targetState === "FAR") this.transition(key, "FAR", tick);
+      if (targetState === "FAR" && !this.transition(key, "FAR", tick)) return decision;
       return decision;
     }
+
+    const record = this.chunks.get(key);
+    if (!record) return decision;
+    if (tick < record.lastRelevantTick) throw new Error("tick must be monotonic per chunk");
+    record.lastRelevantTick = tick;
 
     if (current !== targetState) {
       if (current === "RELEASED") {
@@ -70,22 +78,45 @@ export class FarViewCore {
   }
 
   public transition(key: string, next: ChunkState, tick: number): boolean {
+    this.validateKeyAndTick(key, tick);
     const previous = this.chunks.get(key);
-    if (previous && previous.state !== next && !NEXT_STATES[previous.state].includes(next)) return false;
-    if (!previous && next !== "DISCOVERED") return false;
-    if (!previous && this.chunks.size >= this.maxTrackedChunks) return false;
+    if (previous) {
+      if (tick < previous.lastRelevantTick) return false;
+      if (previous.state !== next && !NEXT_STATES[previous.state].includes(next)) return false;
+    } else {
+      if (next !== "DISCOVERED") return false;
+      if (this.chunks.size >= this.maxTrackedChunks) return false;
+    }
+
     this.chunks.set(key, { state: next, lastRelevantTick: tick });
     const trail = this.history.get(key) ?? [];
-    if (trail.length === 0 || trail[trail.length - 1] !== next) trail.push(next);
+    if (trail.length === 0 || trail[trail.length - 1] !== next) {
+      if (trail.length >= MAX_HISTORY_PER_KEY) trail.shift();
+      trail.push(next);
+    }
     this.history.set(key, trail);
     return true;
   }
 
   public release(key: string, tick: number): void {
+    this.validateKeyAndTick(key, tick);
     const current = this.chunks.get(key);
-    if (!current || current.state === "RELEASED") return;
+    if (!current || current.state === "RELEASED" || tick < current.lastRelevantTick) return;
     if (!NEXT_STATES[current.state].includes("RELEASED")) return;
     this.transition(key, "RELEASED", tick);
+  }
+
+  public reclaimStale(currentTick: number, maxIdleTicks: number): number {
+    if (!Number.isInteger(currentTick) || currentTick < 0) throw new Error("currentTick must be a non-negative integer");
+    if (!Number.isInteger(maxIdleTicks) || maxIdleTicks < 1) throw new Error("maxIdleTicks must be a positive integer");
+    let released = 0;
+    for (const [key, record] of this.chunks) {
+      if (record.state !== "RELEASED" && currentTick - record.lastRelevantTick >= maxIdleTicks) {
+        this.release(key, currentTick);
+        released++;
+      }
+    }
+    return released;
   }
 
   public getState(key: string): ChunkState | undefined {
@@ -110,6 +141,11 @@ export class FarViewCore {
 
   public get trackedCount(): number {
     return this.chunks.size;
+  }
+
+  private validateKeyAndTick(key: string, tick: number): void {
+    if (!key || typeof key !== "string") throw new Error("key must be a non-empty string");
+    if (!Number.isInteger(tick) || tick < 0) throw new Error("tick must be a non-negative integer");
   }
 }
 
