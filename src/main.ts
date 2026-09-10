@@ -9,10 +9,11 @@ const scheduler = new BoundedPriorityScheduler<() => void>({ maxQueue: 256, maxP
 const shield = new PlayabilityShield();
 const governor = new AdaptivePerformanceGovernor();
 
-installRuntimeHeartbeat(tick => {
+installRuntimeHeartbeat(() => {
   const localGameplayActive = false;
   const pressure = scheduler.size / 256;
-  governor.evaluate({ queueRatio: pressure, workRatio: 32 / 32, memoryRatio: 0, localGameplayActive });
+  const workPressure = scheduler.size === 0 ? 0 : Math.min(1, scheduler.size / 32);
+  governor.evaluate({ queueRatio: pressure, workRatio: workPressure, memoryRatio: 0, localGameplayActive });
   scheduler.drain(item => item.payload());
 });
 
