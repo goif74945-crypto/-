@@ -21,6 +21,7 @@ const NEXT_STATES: Record<ChunkState, readonly ChunkState[]> = {
 
 export class FarViewCore {
   private readonly chunks = new Map<string, ChunkRecord>();
+  private readonly history = new Map<string, ChunkState[]>();
 
   public constructor(private readonly maxTrackedChunks = 256) {
     if (maxTrackedChunks <= 0) throw new Error("maxTrackedChunks must be positive");
@@ -74,6 +75,9 @@ export class FarViewCore {
     if (!previous && next !== "DISCOVERED") return false;
     if (!previous && this.chunks.size >= this.maxTrackedChunks) return false;
     this.chunks.set(key, { state: next, lastRelevantTick: tick });
+    const trail = this.history.get(key) ?? [];
+    if (trail.length === 0 || trail[trail.length - 1] !== next) trail.push(next);
+    this.history.set(key, trail);
     return true;
   }
 
@@ -81,11 +85,15 @@ export class FarViewCore {
     const current = this.chunks.get(key);
     if (!current || current.state === "RELEASED") return;
     if (!NEXT_STATES[current.state].includes("RELEASED")) return;
-    this.chunks.set(key, { state: "RELEASED", lastRelevantTick: tick });
+    this.transition(key, "RELEASED", tick);
   }
 
   public getState(key: string): ChunkState | undefined {
     return this.chunks.get(key)?.state;
+  }
+
+  public getTransitionHistory(key: string): readonly ChunkState[] {
+    return [...(this.history.get(key) ?? [])];
   }
 
   public clearReleased(): number {
@@ -93,6 +101,7 @@ export class FarViewCore {
     for (const [key, record] of this.chunks) {
       if (record.state === "RELEASED") {
         this.chunks.delete(key);
+        this.history.delete(key);
         removed++;
       }
     }
