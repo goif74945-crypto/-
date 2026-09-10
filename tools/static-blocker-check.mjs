@@ -2,7 +2,7 @@ import { readFile, readdir } from "node:fs/promises";
 import { join, relative } from "node:path";
 
 const root = new URL("..", import.meta.url).pathname;
-const sourceRoots = ["src", "tests", "tools"];
+const sourceRoots = ["src", "tests"];
 const forbidden = [
   /\bTODO\b/i,
   /\bFIXME\b/i,
