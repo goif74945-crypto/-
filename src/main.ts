@@ -21,29 +21,13 @@ const combat = new UniversalAttackAPI(new CooldownResolver(), new CriticalResolv
 const combatPort = new BedrockCombatPort();
 const MAX_FAR_TARGETS_PER_PLAYER = 100;
 const MAX_PLAYERS_PER_PRODUCER_TICK = 8;
-const FAR_OFFSETS = Array.from({ length: MAX_FAR_TARGETS_PER_PLAYER }, (_, index) => ({ dx: (index % 10) - 5, dz: Math.floor(index / 10) - 5 }));
+const FAR_OFFSETS = Array.from({ length: MAX_FAR_TARGETS_PER_PLAYER }, (_, index) => ({ dx: index + 1, dz: 0 }));
 
 installRuntimeEventWiring();
 installRuntimeHarness();
 installRuntimeCombatObserver((request: AttackRequest) => {
-  const definition = {
-    id: request.weaponId,
-    attackType: request.attackType,
-    baseDamage: request.baseDamage,
-    range: request.range,
-    cooldownTicks: request.cooldownTicks,
-    knockback: request.knockback,
-    durabilityCost: request.durabilityCost,
-    modifiers: request.modifiers,
-    effects: request.effects,
-  } as const;
-  const context = {
-    attackerId: request.attackerId,
-    targetId: request.targetId,
-    direction: request.direction,
-    tick: request.tick,
-    criticalEligible: request.criticalEligible,
-  } as const;
+  const definition = { id: request.weaponId, attackType: request.attackType, baseDamage: request.baseDamage, range: request.range, cooldownTicks: request.cooldownTicks, knockback: request.knockback, durabilityCost: request.durabilityCost, modifiers: request.modifiers, effects: request.effects } as const;
+  const context = { attackerId: request.attackerId, targetId: request.targetId, direction: request.direction, tick: request.tick, criticalEligible: request.criticalEligible } as const;
   const adapter = request.attackType === "MELEE" ? new SwordAdapter(definition)
     : request.attackType === "HEAVY_MELEE" ? new AxeAdapter(definition)
     : request.attackType === "THRUST" ? new SpearAdapter(definition)
@@ -99,7 +83,7 @@ function produceFarViewWork(tick: number): void {
           if (capability.capability === "NOT_IMPLEMENTABLE") farView.release(key, tick);
         });
       }
-    } catch { /* runtime evidence records API failures; producer remains bounded */ }
+    } catch { /* bounded producer; runtime harness records API failures */ }
   }
 }
 
