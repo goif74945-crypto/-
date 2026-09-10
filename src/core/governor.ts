@@ -3,7 +3,7 @@ export type GovernorState = "EXTREME" | "HIGH" | "BALANCED" | "SAFE" | "CRITICAL
 export interface PressureSample {
   readonly queueRatio: number;
   readonly workRatio: number;
-  readonly memoryRatio: number;
+  readonly memoryRatio?: number;
   readonly localGameplayActive: boolean;
 }
 
@@ -26,7 +26,11 @@ export class AdaptivePerformanceGovernor {
   private stableWindows = 0;
 
   public evaluate(sample: PressureSample): GovernorState {
-    const pressure = Math.max(sample.queueRatio, sample.workRatio, sample.memoryRatio);
+    const pressures = [sample.queueRatio, sample.workRatio];
+    if (sample.memoryRatio !== undefined) pressures.push(sample.memoryRatio);
+    const finitePressures = pressures.filter(Number.isFinite).map(value => Math.max(0, Math.min(1, value)));
+    const pressure = finitePressures.length === 0 ? 0 : Math.max(...finitePressures);
+
     if (sample.localGameplayActive && pressure >= 0.65) {
       this.state = pressure >= 0.9 ? "CRITICAL" : "SAFE";
       this.stableWindows = 0;
