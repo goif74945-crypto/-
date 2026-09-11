@@ -22,10 +22,13 @@ test("runtime source wires combat from the authoritative before-hurt event", asy
 
 test("after-hurt remains observation-only and cannot invoke the combat observer", async () => {
   const source = await readFile(new URL("../../src/bedrock/runtime.ts", import.meta.url), "utf8");
-  const afterHurt = source.match(/world\.afterEvents\.entityHurt\.subscribe\(event=>\{([\s\S]*?)\}\);/);
-  assert.ok(afterHurt, "afterEvents.entityHurt production subscription missing");
-  assert.doesNotMatch(afterHurt[1], /observeCombat\(/);
-  assert.doesNotMatch(afterHurt[1], /combatObserver\(/);
+  const start = source.indexOf("world.afterEvents.entityHurt.subscribe");
+  assert.notEqual(start, -1, "afterEvents.entityHurt production subscription missing");
+  const end = source.indexOf("});", start);
+  assert.ok(end > start, "afterEvents.entityHurt subscription boundary missing");
+  const section = source.slice(start, end);
+  assert.doesNotMatch(section, /observeCombat\(/);
+  assert.doesNotMatch(section, /combatObserver\(/);
 });
 
 test("canonical damage commit is limited to the active before-hurt event", async () => {
@@ -38,8 +41,11 @@ test("canonical damage commit is limited to the active before-hurt event", async
 
 test("projectile after-events do not create a second canonical damage path", async () => {
   const source = await readFile(new URL("../../src/bedrock/runtime.ts", import.meta.url), "utf8");
-  const projectileEntity = source.match(/world\.afterEvents\.projectileHitEntity\.subscribe\(event=>\{([\s\S]*?)\}\);/);
-  assert.ok(projectileEntity, "projectileHitEntity production subscription missing");
-  assert.doesNotMatch(projectileEntity[1], /observeCombat\(/);
-  assert.doesNotMatch(projectileEntity[1], /combatObserver\(/);
+  const start = source.indexOf("world.afterEvents.projectileHitEntity.subscribe");
+  assert.notEqual(start, -1, "projectileHitEntity production subscription missing");
+  const end = source.indexOf("});", start);
+  assert.ok(end > start, "projectileHitEntity subscription boundary missing");
+  const section = source.slice(start, end);
+  assert.doesNotMatch(section, /observeCombat\(/);
+  assert.doesNotMatch(section, /combatObserver\(/);
 });
