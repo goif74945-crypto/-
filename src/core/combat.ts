@@ -159,8 +159,11 @@ export class UniversalAttackAPI {
   ) { this.weapons = weapons; }
 
   public executeAdapter(adapter: WeaponAdapter, context: AttackContext, port: CombatExecutionPort): CombatResult {
-    if (!this.weapons.register(adapter.definition)) return this.reject(adapter.toAttackRequest(context), "WEAPON_INVALID");
-    return this.execute(adapter.toAttackRequest(context), port);
+    const request = adapter.toAttackRequest(context);
+    const validation = this.validateRequest(request);
+    if (validation) return this.reject(request, validation);
+    if (!this.weapons.register(adapter.definition)) return this.reject(request, "WEAPON_INVALID");
+    return this.execute(request, port);
   }
 
   public execute(request: AttackRequest, port: CombatExecutionPort): CombatResult {
