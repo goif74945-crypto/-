@@ -5,6 +5,7 @@ import {
   EquipmentSlot,
   ItemComponentTypes,
   type Entity,
+  type EntityHurtBeforeEvent,
   type Player,
   type Vector3,
 } from "@minecraft/server";
@@ -51,6 +52,7 @@ const runtimeErrors: string[] = [];
 let projectileEventsAccepted = 0;
 let duplicateProjectileEventsRejected = 0;
 let combatObserver: ((request: AttackRequest) => void) | undefined;
+let activeBeforeHurtEvent: EntityHurtBeforeEvent | undefined;
 let runtimeWiringInstalled = false;
 let runtimeHeartbeatInstalled = false;
 let runtimeHarnessInstalled = false;
@@ -98,6 +100,25 @@ function observeCombat(attacker: Entity|undefined,target: Entity|undefined,damag
   try { combatObserver(buildObservedAttack(attacker,target,attackTypeOverride ?? weaponAttackType(attacker),Math.max(0,damage))); } catch(error){recordRuntimeError(error);}
 }
 
+function dispatchBeforeHurtCombat(event: EntityHurtBeforeEvent): void {
+  const attacker = event.damageSource.damagingEntity;
+  const target = event.hurtEntity;
+  rememberEntity(attacker);
+  rememberEntity(target);
+  mark("COMBAT");
+  if (isBossEntity(target)) mark("BOSS");
+  if (attacker?.typeId === "minecraft:player" && target.typeId === "minecraft:player") mark("PVP");
+  if (!attacker || !combatObserver) return;
+  try {
+    activeBeforeHurtEvent = event;
+    combatObserver(buildObservedAttack(attacker,target,weaponAttackType(attacker),Math.max(0,event.damage)));
+  } catch(error){
+    recordRuntimeError(error);
+  } finally {
+    activeBeforeHurtEvent = undefined;
+  }
+}
+
 export function installRuntimeEventWiring(): void {
   if (runtimeWiringInstalled) return;
   world.afterEvents.playerSpawn.subscribe(event=>rememberEntity(event.player));
@@ -112,8 +133,9 @@ export function installRuntimeEventWiring(): void {
   world.afterEvents.itemUse.subscribe(event=>{rememberEntity(event.source);mark("ITEM_USE");});
   world.afterEvents.itemStartUse.subscribe(event=>{rememberEntity(event.source);mark("ITEM_USE");});
   world.afterEvents.entityHitEntity.subscribe(event=>{rememberEntity(event.damagingEntity);rememberEntity(event.hitEntity);mark("COMBAT");mark("NEAR_ENTITY");if(isBossEntity(event.hitEntity))mark("BOSS");if(event.damagingEntity.typeId==="minecraft:player"&&event.hitEntity.typeId==="minecraft:player")mark("PVP");});
-  world.afterEvents.entityHurt.subscribe(event=>{rememberEntity(event.hurtEntity);mark("COMBAT");if(isBossEntity(event.hurtEntity))mark("BOSS");observeCombat(event.damageSource.damagingEntity,event.hurtEntity,event.damage);});
-  world.afterEvents.projectileHitEntity.subscribe(event=>{rememberEntity(event.source);const hit=event.getEntityHit();const entity=hit.entity;if(!entity)return;rememberEntity(entity);if(rememberProjectileEvent(event.projectile.id,entity.id,system.currentTick)){mark("PROJECTILE");observeCombat(event.source,entity,0,"PROJECTILE");}});
+  world.beforeEvents.entityHurt.subscribe(event=>dispatchBeforeHurtCombat(event));
+  world.afterEvents.entityHurt.subscribe(event=>{rememberEntity(event.hurtEntity);mark("COMBAT");if(isBossEntity(event.hurtEntity))mark("BOSS");});
+  world.afterEvents.projectileHitEntity.subscribe(event=>{rememberEntity(event.source);const hit=event.getEntityHit();const entity=hit.entity;if(!entity)return;rememberEntity(entity);if(rememberProjectileEvent(event.projectile.id,entity.id,system.currentTick)){mark("PROJECTILE");}});
   world.afterEvents.projectileHitBlock.subscribe(event=>{rememberEntity(event.source);rememberProjectileEvent(event.projectile.id,`block:${event.dimension.id}:${event.location.x}:${event.location.y}:${event.location.z}`,system.currentTick);mark("PROJECTILE");});
   world.afterEvents.entityDie.subscribe(event=>{rememberEntity(event.deadEntity);mark("IMPORTANT_EVENT");});
   world.afterEvents.leverAction.subscribe(()=>mark("REDSTONE")); world.afterEvents.pistonActivate.subscribe(()=>mark("REDSTONE")); world.afterEvents.pressurePlatePush.subscribe(()=>mark("REDSTONE"));
@@ -151,12 +173,27 @@ export class BedrockCombatPort implements CombatExecutionPort {
       const blockHit=attacker.getBlockFromViewDirection({maxDistance:request.range,includePassableBlocks:false,includeLiquidBlocks:false});
       if(blockHit && isEarlierThanBlockHit(attacker,blockHit,first.distance))return undefined;
       rememberEntity(first.entity);
-      return{id:first.entity.id,entity:first.entity,distance:first.distance};
+      return{id:first.entity.id,entity:first.entity.entity,distance:first.distance};
     }catch(error){recordRuntimeError(error);return undefined;}
   }
   public mitigateArmorDamage(target:ResolvedCombatTarget,_request:AttackRequest,incomingDamage:number):number{const equippable=(target.entity as Entity).getComponent(EntityComponentTypes.Equippable);if(!equippable)throw new Error("ARMOR_COMPONENT_UNAVAILABLE");const armor=Math.max(0,Math.min(100,equippable.totalArmor));const toughness=Math.max(0,Math.min(100,equippable.totalToughness));const reduction=Math.min(0.8,armor*0.04+toughness*0.01);return Math.max(0,incomingDamage*(1-reduction));}
   public mitigateResistanceDamage(target:ResolvedCombatTarget,_request:AttackRequest,incomingDamage:number):number{const resistance=(target.entity as Entity).getEffect("resistance");if(!resistance)return incomingDamage;const reduction=Math.min(0.8,0.2*(resistance.amplifier+1));return Math.max(0,incomingDamage*(1-reduction));}
-  public commit(_request:AttackRequest,_target:ResolvedCombatTarget,_plan:CombatCommitPlan):CombatCommitResult{return{committed:false,effectStatuses:[],durabilityStatus:"NOT_VERIFIED",projectileStatus:"NOT_VERIFIED",deathStatus:"NOT_VERIFIED",lootStatus:"NOT_VERIFIED",xpStatus:"NOT_VERIFIED"};}
+  public commit(request:AttackRequest,_target:ResolvedCombatTarget,plan:CombatCommitPlan):CombatCommitResult{
+    if (activeBeforeHurtEvent) {
+      if (!Number.isFinite(plan.finalDamage) || plan.finalDamage < 0) throw new Error("INVALID_PRE_DAMAGE_COMMIT");
+      activeBeforeHurtEvent.damage = plan.finalDamage;
+      return {
+        committed:true,
+        effectStatuses:request.effects.map(()=>"NOT_APPLICABLE"),
+        durabilityStatus:"NOT_APPLICABLE",
+        projectileStatus:"NOT_APPLICABLE",
+        deathStatus:"NOT_APPLICABLE",
+        lootStatus:"NOT_APPLICABLE",
+        xpStatus:"NOT_APPLICABLE",
+      };
+    }
+    return{committed:false,effectStatuses:[],durabilityStatus:"NOT_VERIFIED",projectileStatus:"NOT_VERIFIED",deathStatus:"NOT_VERIFIED",lootStatus:"NOT_VERIFIED",xpStatus:"NOT_VERIFIED"};
+  }
   public applyEffect(target:ResolvedCombatTarget,effect:CombatEffect):boolean{if(effect.durationTicks<1||effect.durationTicks>20000000)return false;try{(target.entity as Entity).addEffect(effect.id,effect.durationTicks,{amplifier:effect.amplifier,showParticles:true});return true;}catch(error){recordRuntimeError(error);return false;}}
   public applyDurability(request:AttackRequest):boolean{const attacker=trackedEntities.get(request.attackerId);if(!attacker?.isValid)return false;try{const equipment=attacker.getComponent(EntityComponentTypes.Equippable);if(!equipment)return false;const slot=equipment.getEquipmentSlot(EquipmentSlot.Mainhand);const item=slot.getItem();if(!item)return false;const durability=item.getComponent(ItemComponentTypes.Durability);if(!durability||durability.unbreakable)return false;const next=durability.damage+Math.max(0,request.durabilityCost);if(next>=durability.maxDurability)return equipment.setEquipment(EquipmentSlot.Mainhand,undefined);durability.damage=next;slot.setItem(item);return true;}catch(error){recordRuntimeError(error);return false;}}
   public getRuntimeMetrics():RuntimeMetrics{return{trackedEntities:trackedEntityCount(),runtimeErrors:runtimeErrors.length,projectileEventsAccepted,duplicateProjectileEventsRejected};}
