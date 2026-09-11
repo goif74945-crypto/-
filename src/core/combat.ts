@@ -70,6 +70,7 @@ export class WeaponRegistry {
     this.weapons.set(definition.id, definition);
     return true;
   }
+  public unregister(id: string): boolean { return this.weapons.delete(id); }
   public get(id: string): WeaponDefinition | undefined { return this.weapons.get(id); }
   public get size(): number { return this.weapons.size; }
 }
@@ -162,8 +163,19 @@ export class UniversalAttackAPI {
     const request = adapter.toAttackRequest(context);
     const validation = this.validateRequest(request);
     if (validation) return this.reject(request, validation);
-    if (!this.weapons.register(adapter.definition)) return this.reject(request, "WEAPON_INVALID");
-    return this.execute(request, port);
+    if (!isValidWeaponDefinition(adapter.definition)) return this.reject(request, "WEAPON_INVALID");
+
+    const existing = this.weapons.get(adapter.definition.id);
+    if (existing && !weaponDefinitionsEqual(existing, adapter.definition)) {
+      return this.reject(request, "WEAPON_DEFINITION_CONFLICT");
+    }
+
+    const registeredHere = existing === undefined;
+    if (registeredHere && !this.weapons.register(adapter.definition)) return this.reject(request, "WEAPON_INVALID");
+
+    const result = this.execute(request, port);
+    if (!result.accepted && registeredHere) this.weapons.unregister(adapter.definition.id);
+    return result;
   }
 
   public execute(request: AttackRequest, port: CombatExecutionPort): CombatResult {
@@ -308,6 +320,24 @@ export class UniversalAttackAPI {
       xpStatus: commit.xpStatus,
     };
   }
+}
+
+function weaponDefinitionsEqual(a: WeaponDefinition, b: WeaponDefinition): boolean {
+  if (a.id !== b.id || a.attackType !== b.attackType || a.baseDamage !== b.baseDamage || a.range !== b.range || a.cooldownTicks !== b.cooldownTicks || a.knockback !== b.knockback || a.durabilityCost !== b.durabilityCost) return false;
+  if (!modifiersEqual(a.modifiers ?? [], b.modifiers ?? [])) return false;
+  const ae = a.effects ?? [];
+  const be = b.effects ?? [];
+  return ae.length === be.length && ae.every((effect, index) => {
+    const other = be[index];
+    return Boolean(other) && effect.id === other.id && effect.durationTicks === other.durationTicks && effect.amplifier === other.amplifier;
+  });
+}
+
+function modifiersEqual(a: readonly CombatModifier[], b: readonly CombatModifier[]): boolean {
+  return a.length === b.length && a.every((modifier, index) => {
+    const other = b[index];
+    return Boolean(other) && modifier.id === other.id && modifier.multiplier === other.multiplier;
+  });
 }
 
 function isValidWeaponDefinition(definition: WeaponDefinition): boolean {
