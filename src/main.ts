@@ -4,10 +4,7 @@ import { FarViewCore, generateSpatialFarOffsets, type FarViewDecision } from "./
 import { BoundedPriorityScheduler, priorityForDistance } from "./core/performance.js";
 import { PlayabilityShield, type GameplayClass } from "./core/playability.js";
 import { AdaptivePerformanceGovernor } from "./core/governor.js";
-import {
-  AxeAdapter, BowAdapter, CooldownResolver, CriticalResolver, CustomWeaponAdapter,
-  DamageResolver, KnockbackResolver, SpearAdapter, SwordAdapter, UniversalAttackAPI,
-} from "./core/combat.js";
+import { CooldownResolver, CriticalResolver, DamageResolver, KnockbackResolver, UniversalAttackAPI } from "./core/combat.js";
 import {
   BedrockCombatPort, gameplayPressure, installRuntimeCombatObserver,
   installRuntimeEventWiring, installRuntimeHeartbeat, installRuntimeHarness,
