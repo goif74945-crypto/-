@@ -9,8 +9,9 @@ import {
   DamageResolver, KnockbackResolver, SpearAdapter, SwordAdapter, UniversalAttackAPI,
 } from "./core/combat.js";
 import {
-  BedrockCombatPort, gameplayPressure, installRuntimeEventWiring,
-  installRuntimeHeartbeat, installRuntimeHarness, readClientCapabilities, recordRuntimeError,
+  BedrockCombatPort, gameplayPressure, installRuntimeCombatObserver,
+  installRuntimeEventWiring, installRuntimeHeartbeat, installRuntimeHarness,
+  readClientCapabilities, recordRuntimeError,
 } from "./bedrock/runtime.js";
 
 const farView = new FarViewCore(256);
@@ -27,11 +28,13 @@ installRuntimeEventWiring();
 installRuntimeHarness();
 
 /**
- * Runtime combat remains observer-only until the canonical weapon catalogue and
- * authoritative pre-damage mutation path are proven on Bedrock 26.45. This
- * intentionally avoids manufacturing WeaponDefinition values from after-event
- * observations and therefore avoids double damage / duplicated side effects.
+ * All runtime combat observations converge on the canonical combat resolver.
+ * The Bedrock port remains fail-safe for end-to-end side effects until the
+ * target-version runtime contract is proven in a real Bedrock 26.45 session.
  */
+installRuntimeCombatObserver(request => {
+  combat.execute(request, combatPort);
+});
 
 export function scheduleGameplayWork(kind: GameplayClass, key: string, tick: number, payload: () => void): boolean {
   if (shield.shouldDegrade(kind, tick)) return false;
