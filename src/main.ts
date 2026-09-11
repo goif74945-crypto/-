@@ -25,12 +25,16 @@ installRuntimeEventWiring();
 installRuntimeHarness();
 
 /**
- * All runtime combat observations converge on the canonical combat resolver.
- * The Bedrock port remains fail-safe for end-to-end side effects until the
- * target-version runtime contract is proven in a real Bedrock 26.45 session.
+ * After-event observations are intentionally admitted to the canonical
+ * resolver only when an identical authoritative weapon definition is already
+ * registered. No weapon definition is synthesized from an after-event.
+ * Runtime side-effect commit remains fail-safe until the Bedrock 26.45
+ * authoritative damage contract is proven in a real target session.
  */
 installRuntimeCombatObserver(request => {
-  combat.execute(request, combatPort);
+  if (!combat.weapons.get(request.weaponId)) return;
+  const result = combat.execute(request, combatPort);
+  if (!result.accepted) recordRuntimeError(`COMBAT_OBSERVATION_REJECTED:${result.reason ?? "UNKNOWN"}`);
 });
 
 export function scheduleGameplayWork(kind: GameplayClass, key: string, tick: number, payload: () => void): boolean {
