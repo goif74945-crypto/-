@@ -1,5 +1,5 @@
 import { world } from "@minecraft/server";
-import type { WorkItem, Priority } from "./core/types.js";
+import type { AttackRequest, WorkItem, Priority } from "./core/types.js";
 import { FarViewCore, generateSpatialFarOffsets, type FarViewDecision } from "./core/far-view.js";
 import { BoundedPriorityScheduler, priorityForDistance } from "./core/performance.js";
 import { PlayabilityShield, type GameplayClass } from "./core/playability.js";
@@ -24,18 +24,42 @@ const FAR_OFFSETS = generateSpatialFarOffsets(MAX_FAR_TARGETS_PER_PLAYER);
 installRuntimeEventWiring();
 installRuntimeHarness();
 
+function ensureObservedWeaponRegistered(request: AttackRequest): void {
+  if (combat.weapons.get(request.weaponId)) return;
+  const registered = combat.weapons.register({
+    id: request.weaponId,
+    attackType: request.attackType,
+    baseDamage: request.baseDamage,
+    range: request.range,
+    cooldownTicks: request.cooldownTicks,
+    knockback: request.knockback,
+    durabilityCost: request.durabilityCost,
+    modifiers: request.modifiers,
+    effects: request.effects,
+  });
+  if (!registered) throw new Error(`COMBAT_WEAPON_REGISTRATION_FAILED:${request.weaponId}`);
+}
+
 /**
  * The runtime combat observer is invoked from the authoritative
- * world.beforeEvents.entityHurt gate. The BedrockCombatPort commit performed
- * in that restricted callback mutates only EntityHurtBeforeEvent.damage,
- * keeping the production damage path canonical and pre-damage. The later
- * world.afterEvents.entityHurt callback is observation-only and never routes
- * damage back through the combat API, preventing duplicate side effects.
+ * world.beforeEvents.entityHurt gate. The observed request is registered only
+ * when its weapon id has no existing definition, using the exact request
+ * values already produced by the Bedrock event mapping. The canonical
+ * UniversalAttackAPI remains responsible for validation, target resolution,
+ * damage resolution, and commit; no after-hurt path applies damage.
+ *
+ * BedrockCombatPort.commit performed in the restricted callback mutates only
+ * EntityHurtBeforeEvent.damage. The later world.afterEvents.entityHurt
+ * callback is observation-only, preventing duplicate side effects.
  */
 installRuntimeCombatObserver(request => {
-  if (!combat.weapons.get(request.weaponId)) return;
-  const result = combat.execute(request, combatPort);
-  if (!result.accepted) recordRuntimeError(`COMBAT_PRE_DAMAGE_REJECTED:${result.reason ?? "UNKNOWN"}`);
+  try {
+    ensureObservedWeaponRegistered(request);
+    const result = combat.execute(request, combatPort);
+    if (!result.accepted) recordRuntimeError(`COMBAT_PRE_DAMAGE_REJECTED:${result.reason ?? "UNKNOWN"}`);
+  } catch (error) {
+    recordRuntimeError(error);
+  }
 });
 
 export function scheduleGameplayWork(kind: GameplayClass, key: string, tick: number, payload: () => void): boolean {
