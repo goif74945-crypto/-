@@ -173,7 +173,7 @@ export class BedrockCombatPort implements CombatExecutionPort {
       const blockHit=attacker.getBlockFromViewDirection({maxDistance:request.range,includePassableBlocks:false,includeLiquidBlocks:false});
       if(blockHit && isEarlierThanBlockHit(attacker,blockHit,first.distance))return undefined;
       rememberEntity(first.entity);
-      return{id:first.entity.id,entity:first.entity.entity,distance:first.distance};
+      return{id:first.entity.id,entity:first.entity,distance:first.distance};
     }catch(error){recordRuntimeError(error);return undefined;}
   }
   public mitigateArmorDamage(target:ResolvedCombatTarget,_request:AttackRequest,incomingDamage:number):number{const equippable=(target.entity as Entity).getComponent(EntityComponentTypes.Equippable);if(!equippable)throw new Error("ARMOR_COMPONENT_UNAVAILABLE");const armor=Math.max(0,Math.min(100,equippable.totalArmor));const toughness=Math.max(0,Math.min(100,equippable.totalToughness));const reduction=Math.min(0.8,armor*0.04+toughness*0.01);return Math.max(0,incomingDamage*(1-reduction));}
