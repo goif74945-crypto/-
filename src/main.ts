@@ -25,16 +25,17 @@ installRuntimeEventWiring();
 installRuntimeHarness();
 
 /**
- * After-event observations are intentionally admitted to the canonical
- * resolver only when an identical authoritative weapon definition is already
- * registered. No weapon definition is synthesized from an after-event.
- * Runtime side-effect commit remains fail-safe until the Bedrock 26.45
- * authoritative damage contract is proven in a real target session.
+ * The runtime combat observer is invoked from the authoritative
+ * world.beforeEvents.entityHurt gate. The BedrockCombatPort commit performed
+ * in that restricted callback mutates only EntityHurtBeforeEvent.damage,
+ * keeping the production damage path canonical and pre-damage. The later
+ * world.afterEvents.entityHurt callback is observation-only and never routes
+ * damage back through the combat API, preventing duplicate side effects.
  */
 installRuntimeCombatObserver(request => {
   if (!combat.weapons.get(request.weaponId)) return;
   const result = combat.execute(request, combatPort);
-  if (!result.accepted) recordRuntimeError(`COMBAT_OBSERVATION_REJECTED:${result.reason ?? "UNKNOWN"}`);
+  if (!result.accepted) recordRuntimeError(`COMBAT_PRE_DAMAGE_REJECTED:${result.reason ?? "UNKNOWN"}`);
 });
 
 export function scheduleGameplayWork(kind: GameplayClass, key: string, tick: number, payload: () => void): boolean {
