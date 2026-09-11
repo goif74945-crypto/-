@@ -306,8 +306,8 @@ export class UniversalAttackAPI {
       baseDamage: request.baseDamage,
       modifiedDamage: 0,
       finalDamage: 0,
-      critical: false,
       knockback: { x: 0, y: 0, z: 0 },
+      critical: false,
       cooldownReadyAt: request.tick,
       durabilityCost: 0,
       armorStatus: "NOT_VERIFIED",
@@ -329,14 +329,16 @@ function weaponDefinitionsEqual(a: WeaponDefinition, b: WeaponDefinition): boole
   const be = b.effects ?? [];
   return ae.length === be.length && ae.every((effect, index) => {
     const other = be[index];
-    return Boolean(other) && effect.id === other.id && effect.durationTicks === other.durationTicks && effect.amplifier === other.amplifier;
+    if (other === undefined) return false;
+    return effect.id === other.id && effect.durationTicks === other.durationTicks && effect.amplifier === other.amplifier;
   });
 }
 
 function modifiersEqual(a: readonly CombatModifier[], b: readonly CombatModifier[]): boolean {
   return a.length === b.length && a.every((modifier, index) => {
     const other = b[index];
-    return Boolean(other) && modifier.id === other.id && modifier.multiplier === other.multiplier;
+    if (other === undefined) return false;
+    return modifier.id === other.id && modifier.multiplier === other.multiplier;
   });
 }
 
