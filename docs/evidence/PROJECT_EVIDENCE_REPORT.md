@@ -21,7 +21,7 @@ Official API basis: Microsoft Learn documentation for @minecraft/server and rele
 
 Latest verified report revision before this audit expansion: fe6be59575358b732f84746283489390d5482775.
 Previous report blob: 5ae43c960e94b7a2b135afa7523854e976d9fc68.
-The current audit expansion is documentation-only. The commit returned by the repository mutation is the authoritative tip for this report revision. A report cannot embed its own future commit SHA before the commit exists; therefore the mutation result is the provenance anchor. Any later source/config/CI/runtime mutation makes this report stale and requires re-verification.
+This audit expansion is documentation-only. The commit returned by the repository mutation is the authoritative tip for this report revision. A report cannot embed its own future commit SHA before the commit exists; therefore the mutation result is the provenance anchor. Any later source/config/CI/runtime mutation makes this report stale and requires re-verification.
 
 ## FILES / SYMBOLS INSPECTED
 
@@ -260,21 +260,20 @@ VERDICT: NOT VERIFIED.
 
 AUDIT OBJECTIVE: determine whether current claims satisfy specification and evidence gates.
 
-CHECKS PERFORMED:
-- scope lock
-- authoritative specification identification
-- current-head provenance
-- production call-path tracing
-- requirement matrix
-- API capability boundary
-- test/CI evidence boundary
-- runtime evidence boundary
-- performance evidence boundary
-- 100-chunk semantic separation
-- contradiction/stale-proof exposure
+CHECKS:
+1. scope lock;
+2. authoritative specification;
+3. current-head provenance;
+4. production call-path trace;
+5. requirement matrix;
+6. API capability boundary;
+7. test/CI evidence boundary;
+8. runtime evidence boundary;
+9. performance evidence boundary;
+10. 100-chunk semantic separation;
+11. stale/contradictory evidence exposure.
 
-AUDIT RESULT: critical claims do not yet satisfy the evidence threshold for PASS. Static architecture is useful and several static requirements are PASS, but critical runtime claims remain frozen.
-
+AUDIT RESULT: critical claims do not satisfy the evidence threshold for PASS. Static architecture is useful and several static requirements are PASS, but critical runtime claims remain frozen.
 AUDIT VERDICT: BLOCKED.
 
 ## /FORENSIC
@@ -282,7 +281,7 @@ AUDIT VERDICT: BLOCKED.
 FORENSIC OBJECTIVE: search for stale evidence, unreachable implementation, mock-only proof, production/test mismatch, silent fallback, duplicate mutation, wrong execution context, missing failure path and contradiction.
 
 FINDINGS:
-- prior report provenance had to be advanced as documentation changed;
+- report provenance must advance whenever the report changes;
 - CI #122 is not Bedrock runtime evidence;
 - resolver existence does not prove production input fidelity;
 - silent fallback contradicts the no-silent-fallback law;
@@ -297,25 +296,25 @@ FORENSIC VERDICT: BLOCKED.
 
 ## /BUILD
 
-BUILD OBJECTIVE: establish that build/package success is correctly interpreted and cannot be promoted to runtime proof.
+BUILD OBJECTIVE: establish what build/package evidence proves and prevent promotion to runtime proof.
 
-CURRENT EVIDENCE: package/build/static checks were present in CI; prior CI #122 completed successfully.
-BOUNDARY: successful TypeScript/npm/static/package checks prove build/package integrity only.
-DOES NOT PROVE: exact Bedrock 26.45 load, module execution, gameplay semantics, timing, performance, rendering, multiplayer or Java parity.
+CURRENT EVIDENCE: prior CI #122 completed successfully with Node/npm/static/package checks on Ubuntu.
+PROVEN: build/package/static boundary for the checks actually executed.
+NOT PROVEN: exact Bedrock 26.45 load, exact runtime module execution, gameplay semantics, event ordering, performance, rendering, multiplayer or Java parity.
 
-BUILD VERDICT: PASS for the checked build boundary; NOT VERIFIED for runtime behavior.
+BUILD VERDICT: PASS at build boundary only; NOT VERIFIED for runtime behavior.
 
 ## /TEST
 
-TEST OBJECTIVE: determine whether tests actually exercise production behavior and whether assertions are strong enough for the claims.
+TEST OBJECTIVE: determine whether tests exercise production behavior and whether assertions are sufficient for claimed semantics.
 
 CURRENT TEST SET: tests/core.test.ts, tests/foundation-order.test.ts, tests/production-path-wiring.test.ts, tests/spatial-targets.test.ts, tests/transaction-boundary.test.ts.
 
-TEST INTERPRETATION:
+PROVEN BOUNDARY:
 - static/unit/fixture/mock tests prove only their explicit assertions;
-- production-path wiring tests support static call-path claims;
-- transaction-boundary tests do not by themselves prove real Bedrock event ordering;
-- no test can be promoted to L6 unless it executes the exact target runtime.
+- production-path wiring supports static call-path claims;
+- transaction-boundary tests do not prove real Bedrock event ordering;
+- no test becomes L6 without exact target-runtime execution.
 
 MISSING TEST PROOF:
 - runtime critical eligibility and cooldown timing;
@@ -328,16 +327,16 @@ MISSING TEST PROOF:
 - real performance/mobile/thermal measurement;
 - multiplayer and long-run stability.
 
-TEST VERDICT: PASS for bounded static/test assertions already present; NOT VERIFIED for runtime-critical behavior.
+TEST VERDICT: PASS for existing bounded static assertions; NOT VERIFIED for runtime-critical behavior.
 
 ## /REDTEAM
 
-RED-TEAM OBJECTIVE: attempt to destroy PASS through adversarial scenarios.
+RED-TEAM OBJECTIVE: actively destroy any unjustified PASS.
 
 ATTACK CLASSES:
 1. stale SHA/report;
 2. CI green but runtime absent;
-3. API docs mistaken for exact runtime availability;
+3. API documentation mistaken for exact runtime availability;
 4. implementation exists but production input is wrong;
 5. silent fallback hides invalid state;
 6. duplicate canonical damage through alternate paths;
@@ -351,10 +350,10 @@ ATTACK CLASSES:
 14. single-player proof mistaken for multiplayer proof;
 15. short-run success mistaken for long-run stability.
 
-RED-TEAM RESULT: critical claims remain breakable by missing evidence and known production defects.
+RED-TEAM RESULT: critical claims remain breakable by known production defects and missing evidence.
 RED-TEAM VERDICT: BLOCKED.
 
-## REQUIRED REPAIR / VERIFICATION ORDER
+## REPAIR / VERIFICATION ORDER
 
 1. Repair runtime-derived critical/cooldown/knockback mapping.
 2. Remove silent weapon/component/target fallbacks; make failures explicit.
@@ -370,18 +369,6 @@ RED-TEAM VERDICT: BLOCKED.
 12. Measure logical vs engine-loaded vs client-rendered Far View separately.
 13. Run multiplayer/long-run stress.
 14. Repeat /AUDIT /FORENSIC /BUILD /TEST /REDTEAM and final gate.
-
-## EVIDENCE LEVELS
-
-L0 = claim/report only.
-L1 = source/file/symbol exists.
-L2 = static production call-path proven.
-L3 = specification alignment proven.
-L4 = official API/runtime semantics aligned by documentation.
-L5 = production-equivalent test proven.
-L6 = real target runtime proven.
-
-L0-L5 MUST NOT be called live runtime proof.
 
 ## FINAL GATE
 
@@ -414,7 +401,7 @@ Critical unknowns: PRESENT.
 
 BLOCKED
 
-The repository cannot truthfully be promoted to PASS under the project master law. The strongest defensible conclusion is that several architecture/build/static/API-documentation boundaries are proven, while critical production defects and mandatory L6/runtime/performance/parity evidence remain unresolved.
+The repository cannot truthfully be promoted to PASS under the project master law. Several architecture/build/static/API-documentation boundaries are proven, but critical production defects and mandatory L6/runtime/performance/parity evidence remain unresolved.
 
 ## INTEGRITY RULE
 
