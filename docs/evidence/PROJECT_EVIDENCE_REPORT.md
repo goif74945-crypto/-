@@ -8,7 +8,7 @@ BRANCH: main
 TARGET: Minecraft Bedrock EXACT 26.45
 SCRIPT API TARGET: @minecraft/server EXACT 2.9.0
 
-IN-SCOPE: Far View, bounded performance, Playability Shield, Java-like gameplay/combat, Universal Attack API, Weapon Adapter API, production paths, tests, package, CI, official API semantics, and required runtime gates.
+IN-SCOPE: Far View, bounded performance, Playability Shield, Java-like gameplay/combat, Universal Attack API, Weapon Adapter API, production paths, tests, package, CI, official API semantics, required runtime gates, forensic repair planning, and adversarial verification.
 OUT-OF-SCOPE: UI inside Java-like gameplay core, other target versions, unsupported API assumptions, fake runtime/performance/parity evidence.
 
 AUTHORITATIVE DESIGN: attached NEXY_FARVIEW_100 MASTER DESIGN SPECIFICATION. Repository Phase-0 control: docs/spec/NEXY_FARVIEW_100_PHASE_0_SPEC_LOCK.md.
@@ -17,6 +17,7 @@ AUTHORITATIVE DESIGN: attached NEXY_FARVIEW_100 MASTER DESIGN SPECIFICATION. Rep
 
 Previous verified report commit: 27ae4d652a0e8f1de0d6668aeabef184f7df96b5.
 Previous report blob SHA: 109226ce67393124014bcdbb3a2e9d1dc3978368.
+Latest verified documentation revision before this /x10 expansion was committed at: fe6be59575358b732f84746283489390d5482775.
 This revision is documentation-only; no production source is intentionally changed.
 The commit returned by this update is the authoritative new branch tip for this report revision. Because a report cannot truthfully embed its own future commit SHA before the commit exists, the returned mutation SHA is the final provenance anchor. Any later repository mutation makes this report stale and requires re-verification.
 
@@ -173,7 +174,7 @@ RUNTIME ACTUALLY EXECUTES = NOT VERIFIED until L6.
 
 ## UNIVERSAL ATTACK / WEAPON ADAPTER DECISION
 
-The design requires one combat pipeline: WEAPON → ADAPTER → UNIVERSAL ATTACK API → validation → damage → critical → knockback → effects → durability → result. The attached specification explicitly requires API capability audit before final implementation. fileciteturn13file0L2-L6
+The design requires one combat pipeline: WEAPON → ADAPTER → UNIVERSAL ATTACK API → validation → damage → critical → knockback → effects → durability → result. The attached specification requires API capability audit before final implementation.
 
 The official API set supports the native interception and damage-commit boundary, but does not expose a single native Java-style "attack API" that supplies every conceptual AttackRequest field. Therefore UniversalAttackAPI and WeaponAdapter remain project-level abstractions; they must map only to verified Bedrock primitives and must not pretend to be Microsoft APIs.
 
@@ -207,6 +208,12 @@ No real-device FPS, TPS, CPU, RAM or thermal measurements were found. PERFORMANC
 
 100 chunks is a design target only. Logical target generation is not equivalent to engine loading, simulation distance, or client rendering. No evidence currently proves 100 real rendered chunks on Bedrock 26.45. Do not claim it.
 
+The remaining work must keep three distinct claims separate:
+1. LOGICAL TARGET COVERAGE — what the add-on scheduler generates/queues.
+2. ENGINE LOADED COVERAGE — what Bedrock actually loads/keeps available.
+3. CLIENT RENDERED COVERAGE — what the player client visibly renders.
+No one of these may be substituted for another.
+
 ## EVIDENCE LEVELS
 
 L0 claim/report only.
@@ -223,14 +230,198 @@ L0-L5 are not LIVE RUNTIME PROOF.
 
 L6 remains REQUIRED for claims that explicitly require exact Bedrock 26.45 runtime execution. Required evidence: exact runtime/product version, exact addon package, exact @minecraft/server module loaded, startup/content log evidence, executable combat/far-view probes, before/after event observations, knockback/durability/effect results, no duplicate damage, and target-load measurements where applicable.
 
+## WHAT IS STILL MISSING — MASTER BLOCKER REGISTER
+
+### BLOCKER-01 — Exact Bedrock 26.45 L6 proof
+REQUIRED: start the exact target runtime, load the exact package, confirm product version, confirm addon activation and module load, collect startup/content logs, execute representative probes, and preserve artifacts.
+CURRENT: no direct runtime session evidence.
+VERDICT: NOT VERIFIED.
+
+### BLOCKER-02 — Production critical/cooldown/knockback field correctness
+REQUIRED: replace hardcoded criticalEligible=false, cooldown=5, knockback=2 with runtime-derived or explicitly contract-bound values. The source of each field must be traceable to supported player/entity/item state.
+CURRENT: hardcoded values.
+VERDICT: FAIL.
+
+### BLOCKER-03 — No-silent-fallback enforcement
+REQUIRED: error states must be explicit, observable, and testable. Unknown weapon type/ID, missing components, unsupported target capability, and unsupported source data must not silently become SPECIAL/unarmed or equivalent values.
+CURRENT: silent fallback paths exist.
+VERDICT: FAIL.
+
+### BLOCKER-04 — Full combat transaction completion
+REQUIRED: define and prove transaction phases: INPUT → VALIDATION → CALCULATION → BEFORE-EVENT DAMAGE COMMIT → NATIVE HURT → DEFERRED SIDE EFFECTS → OBSERVATION/RESULT → ONCE-ONLY FINALIZATION. Effects, durability, death consequences, loot/XP interactions and failure paths need explicit ownership.
+CURRENT: only the damage mutation boundary is statically demonstrated.
+VERDICT: NOT VERIFIED.
+
+### BLOCKER-05 — Armor capability contract
+REQUIRED: distinguish player/equippable targets from entities without the capability. Missing armor capability must have an explicit behavior defined by spec, not an exception-driven universal assumption.
+CURRENT: universal target coverage not proven.
+VERDICT: NOT VERIFIED.
+
+### BLOCKER-06 — Projectile end-to-end proof
+REQUIRED: trace projectile source → dedup identity → target resolution → universal attack calculation → single canonical damage commit → post-hit observation/result. Prove no double-damage path.
+CURRENT: dedup exists; end-to-end runtime result absent.
+VERDICT: NOT VERIFIED.
+
+### BLOCKER-07 — Java-like parity dataset
+REQUIRED: establish an explicit parity matrix for base damage, criticals, sprint/air timing assumptions, cooldown rules, knockback, armor, resistance, projectile behavior, weapon-specific behavior, and edge cases. Runtime parity evidence must be separated from design intent.
+CURRENT: no complete parity dataset/runtime evidence.
+VERDICT: NOT VERIFIED.
+
+### BLOCKER-08 — Real performance/thermal measurements
+REQUIRED: controlled measurements on representative target hardware: FPS, TPS/tick cost, CPU, memory/RAM, queue depth/work age, thermal/load behavior, and long-run stability. Compare baseline vs feature enabled.
+CURRENT: policy exists but real telemetry absent.
+VERDICT: NOT VERIFIED.
+
+### BLOCKER-09 — 100-chunk evidence split
+REQUIRED: independently test logical coverage, engine-loaded coverage, and client-rendered coverage. Do not report the design target as rendered distance.
+CURRENT: only logical bounded target generation is statically supported.
+VERDICT: NOT VERIFIED.
+
+### BLOCKER-10 — Multiplayer and long-run stability
+REQUIRED: multi-player sessions, concurrent combat, projectile bursts, chunk churn, disconnect/rejoin, sustained scheduling, duplicate execution checks, memory growth, and long-run governor behavior.
+CURRENT: no independent runtime evidence.
+VERDICT: NOT VERIFIED.
+
+## RECOMMENDED REPAIR / VERIFICATION ORDER
+
+1. REPAIR critical production-path defects first: runtime-derived combat fields, no-silent-fallback, armor capability boundary, and explicit combat transaction ownership.
+2. Re-run repository tests/static checks/build/package and re-trace the production call path on the new HEAD.
+3. Re-run official API cross-check against exact implementation decisions.
+4. Establish the exact Bedrock 26.45 runtime environment and capture L6 loading/execution evidence.
+5. Prove canonical combat transactions, including no duplicate damage and deferred side-effect ordering.
+6. Prove projectile path end-to-end.
+7. Build and execute the Java parity dataset.
+8. Measure real performance/mobile/thermal behavior.
+9. Verify logical vs engine-loaded vs client-rendered Far View separately.
+10. Run multiplayer/long-run stress and final red-team verification.
+
+## /x10 — ADVERSARIAL TEN-ROUND FORENSIC ATTACK ON THE CURRENT CLAIMS
+
+Purpose: actively attempt to destroy a PASS. These rounds are evidence audits, not runtime substitutes. A round can produce FAIL/NOT VERIFIED even when static tests are green.
+
+### X10-01 — FALSE-PASS ATTACK: "CI GREEN = PROJECT GREEN"
+CLAIM-ID: X10-CI-001
+TARGET CLAIM: successful CI means Bedrock behavior is correct.
+ATTACK: inspect workflow boundary; determine whether Minecraft Bedrock is actually launched, target world created, addon loaded, and runtime probes executed.
+EXPECTED: CI must contain target-runtime execution or it cannot provide L6.
+ACTUAL: prior CI #122 executed Node/npm/static/package checks on Ubuntu and did not launch Minecraft Bedrock.
+EVIDENCE LEVEL: L5-or-below.
+GAP: no live engine execution.
+VERDICT: FAIL for live-runtime claim / NOT VERIFIED for Bedrock behavior.
+
+### X10-02 — FALSE-PASS ATTACK: "API DOCUMENTED = API AVAILABLE IN EXACT 26.45 SESSION"
+CLAIM-ID: X10-API-002
+TARGET CLAIM: @minecraft/server 2.9.0 documented means exact 26.45 execution is proven.
+ATTACK: separate API existence, module version documentation, manifest declaration, product-version relationship, and real process loading.
+EXPECTED: each stage must have its own evidence category.
+ACTUAL: documentation and manifest pinning are proven; exact live 26.45 process/module execution is absent.
+EVIDENCE LEVEL: L4 for semantics; no L6.
+GAP: runtime artifact and loaded-module proof.
+VERDICT: NOT VERIFIED.
+
+### X10-03 — PRODUCTION-PATH ATTACK: "CRITICAL/COOLDOWN/KNOCKBACK ARE IMPLEMENTED BECAUSE RESOLVERS EXIST"
+CLAIM-ID: X10-COMBAT-003
+TARGET CLAIM: existence of CriticalResolver/cooldown/knockback logic proves production behavior.
+ATTACK: trace actual field construction from event input to AttackRequest and compare with resolver consumption.
+EXPECTED: production input must carry real eligibility/timing/strength data.
+ACTUAL: buildObservedAttack() supplies hardcoded criticalEligible=false, cooldown=5, knockback=2.
+EVIDENCE LEVEL: L2.
+GAP: runtime-derived values and production fidelity.
+VERDICT: FAIL.
+
+### X10-04 — SILENT-FALLBACK ATTACK: "ERROR HANDLING IS SAFE BECAUSE IT PREVENTS A CRASH"
+CLAIM-ID: X10-ERROR-004
+TARGET CLAIM: caught errors with fallback values preserve behavior.
+ATTACK: inject/observe missing or invalid weapon type, weapon id, component and target capability conditions; inspect resulting semantics.
+EXPECTED: unknown state must be explicit and observable, never silently converted to a different gameplay object.
+ACTUAL: SPECIAL/unarmed fallback paths are present after caught errors.
+EVIDENCE LEVEL: L2 source proof.
+GAP: explicit failure contract and runtime observability.
+VERDICT: FAIL.
+
+### X10-05 — DOUBLE-DAMAGE ATTACK: "AFTER/DEFERRED PROCESSING IS JUST EXTRA EFFECTS"
+CLAIM-ID: X10-DAMAGE-005
+TARGET CLAIM: after-hurt/deferred processing cannot duplicate canonical damage.
+ATTACK: trace every call site that can mutate health/damage from before event, after event, projectile path, deferred callbacks, and scripted applyDamage.
+EXPECTED: exactly one canonical damage origin per native hit, with explicit transaction identity for deferred work.
+ACTUAL: before-event event.damage mutation is statically identified as canonical; full downstream once-only transaction proof is absent.
+EVIDENCE LEVEL: L2.
+GAP: runtime duplicate-damage proof and complete transaction identity/finalization.
+VERDICT: NOT VERIFIED.
+
+### X10-06 — CONTEXT-BOUNDARY ATTACK: "DEFERRED SIDE EFFECTS HAPPEN IN THE SAME TICK AS IF SYNCHRONOUS"
+CLAIM-ID: X10-TIMING-006
+TARGET CLAIM: system.run makes knockback/durability/effects deterministic and equivalent to same-call mutation.
+ATTACK: compare documented scheduling semantics, restricted execution constraints, load-dependent timing, and observed transaction ordering.
+EXPECTED: only exact runtime evidence can establish same-tick/ordering semantics required by gameplay parity.
+ACTUAL: system.run is documented as future scheduling; timing under load is not guaranteed; no L6 ordering test exists.
+EVIDENCE LEVEL: L4 boundary only.
+GAP: runtime ordering and gameplay-equivalent timing.
+VERDICT: NOT VERIFIED.
+
+### X10-07 — CAPABILITY-BOUNDARY ATTACK: "EVERY TARGET HAS EQUIPPABLE/ARMOR"
+CLAIM-ID: X10-ARMOR-007
+TARGET CLAIM: armor resolution works for all damageable entities.
+ATTACK: enumerate player and non-player targets, inspect component availability and exception behavior.
+EXPECTED: explicit capability detection and spec-defined unsupported behavior.
+ACTUAL: EntityEquippableComponent is documented on player entities; universal target coverage is not established.
+EVIDENCE LEVEL: L4 API boundary + L2 implementation.
+GAP: universal capability contract and runtime matrix.
+VERDICT: NOT VERIFIED.
+
+### X10-08 — PROJECTILE ATTACK: "DEDUP MAP = PROJECTILE SYSTEM PROVEN"
+CLAIM-ID: X10-PROJ-008
+TARGET CLAIM: existing projectile deduplication proves projectile gameplay.
+ATTACK: trace source → identity → dedup → target selection → damage calculation → canonical commit → after observation → cleanup, then repeat under burst/concurrency.
+EXPECTED: end-to-end single-result behavior under normal and burst conditions.
+ACTUAL: dedup mechanism exists; complete result path and runtime proof are absent.
+EVIDENCE LEVEL: L2.
+GAP: complete path and L6 stress/runtime evidence.
+VERDICT: NOT VERIFIED.
+
+### X10-09 — FAR-VIEW CLAIM ATTACK: "100 OFFSETS = 100 RENDERED CHUNKS"
+CLAIM-ID: X10-FAR-009
+TARGET CLAIM: generateSpatialFarOffsets(100) proves 100-chunk rendering.
+ATTACK: distinguish logical work generation from Bedrock engine-loaded chunks and actual client rendering; require independent measurements.
+EXPECTED: three claims must be separately measured.
+ACTUAL: current evidence proves only logical bounded target generation.
+EVIDENCE LEVEL: L2/L3.
+GAP: engine/client runtime measurements.
+VERDICT: NOT VERIFIED.
+
+### X10-10 — PERFORMANCE/PARITY ATTACK: "ARCHITECTURE GUARANTEES JAVA-LIKE PERFORMANCE AND GAMEPLAY"
+CLAIM-ID: X10-PERF-010
+TARGET CLAIM: bounded scheduler/governor architecture proves mobile performance and Java parity.
+ATTACK: compare implementation policy with real device telemetry, long-run load, multiplayer concurrency, and a controlled Java parity dataset.
+EXPECTED: measured baseline-vs-feature evidence plus parity cases and runtime results.
+ACTUAL: no real FPS/TPS/CPU/RAM/thermal dataset, no multiplayer runtime proof, and no complete Java parity dataset/runtime evidence.
+EVIDENCE LEVEL: L2/L3.
+GAP: empirical performance and parity evidence.
+VERDICT: NOT VERIFIED.
+
+## /x10 AGGREGATE RESULT
+
+X10-01: FAIL live-runtime equivalence.
+X10-02: NOT VERIFIED exact-runtime API availability.
+X10-03: FAIL production combat-field fidelity.
+X10-04: FAIL no-silent-fallback contract.
+X10-05: NOT VERIFIED duplicate-damage exclusion / full transaction.
+X10-06: NOT VERIFIED deferred ordering/timing parity.
+X10-07: NOT VERIFIED universal armor capability.
+X10-08: NOT VERIFIED projectile end-to-end behavior.
+X10-09: NOT VERIFIED 100-chunk loaded/rendered claim.
+X10-10: NOT VERIFIED performance/multiplayer/Java parity claims.
+
+X10 conclusion: the current repository evidence does not survive an adversarial claim-destruction exercise for the runtime-critical requirements. Static architectural evidence remains useful, but critical runtime claims must remain frozen.
+
 ## RE-VERIFICATION STATUS
 
-This revision changes documentation only and expands the official API capability matrix. Production source was not repaired in this round. The new API evidence therefore changes implementation certainty but does not change the production defects or the L6 gate.
+This revision changes documentation only and adds the MASTER BLOCKER REGISTER, repair/verification order, and /x10 adversarial audit. Production source was not repaired in this round. The new report therefore does not upgrade any runtime claim and does not clear any production defect.
 
 ## FINAL GATE
 
 Scope: PASS
-Current-head provenance: PASS after this documentation commit
+Current-head provenance: PASS for this documentation revision
 Authoritative specification: PASS
 Production paths traced: PASS static
 Official API semantics: PASS at L4 documented boundary
@@ -238,17 +429,20 @@ Exact live Bedrock 26.45 runtime: NOT VERIFIED
 Critical runtime eligibility: FAIL
 Downstream combat transaction: NOT VERIFIED
 Silent fallback contract: FAIL
+Armor capability contract: NOT VERIFIED
+Projectile end-to-end: NOT VERIFIED
 Performance runtime: NOT VERIFIED
 100 real rendered chunks: NOT VERIFIED
 Multiplayer: NOT VERIFIED
 Java parity: NOT VERIFIED
 Critical unknowns: PRESENT
+X10 adversarial gate: BLOCKED
 
 ## FINAL VERDICT
 
 BLOCKED
 
-Reason: the repository has a defensible documented API implementation boundary and a verified @minecraft/server 2.9.0 dependency, but the project still lacks L6 proof on the exact Bedrock 26.45 runtime and still contains production-path defects in critical/cooldown/knockback mapping, silent fallback behavior, and downstream combat transaction completion. Under the project master law, these gaps prohibit PASS.
+Reason: the repository has a defensible documented API implementation boundary and a verified @minecraft/server 2.9.0 dependency declaration, but it still lacks L6 proof on the exact Bedrock 26.45 runtime and still contains production-path defects in critical/cooldown/knockback mapping and silent fallback behavior, while the downstream combat transaction, projectile path, armor capability boundary, performance, multiplayer, Java parity, and 100-chunk engine/client claims remain unverified. Under the project master law, these gaps prohibit PASS.
 
 ## AUTHORITATIVE MICROSOFT SOURCES
 
@@ -260,7 +454,7 @@ Reason: the repository has a defensible documented API implementation boundary a
 - https://learn.microsoft.com/en-us/minecraft/creator/scriptapi/minecraft/server/entitydamagesource?view=minecraft-bedrock-stable
 - https://learn.microsoft.com/en-us/minecraft/creator/scriptapi/minecraft/server/entityequippablecomponent?view=minecraft-bedrock-stable
 - https://learn.microsoft.com/en-us/minecraft/creator/scriptapi/minecraft/server/equipmentslot?view=minecraft-bedrock-stable
-- https://learn.microsoft.com/en-us/minecraft/creator/scriptapi/minecraft/server/itemdurabilitycomponent?view=minecraft-bedrock-stable
+- https://learn.microsoft.com/en-us/minecraft/creator/scriptapi/minecraft/server/itemdurabilitycomponent?view=minecraft-bedrock-experimental
 - https://learn.microsoft.com/en-us/minecraft/creator/scriptapi/minecraft/server/system?view=minecraft-bedrock-experimental
 - https://learn.microsoft.com/en-us/minecraft/creator/scriptapi/minecraft/server/minecraft-server?view=minecraft-bedrock-stable
 - https://learn.microsoft.com/en-us/minecraft/creator/scriptapi/minecraft/server/changelog?view=minecraft-bedrock-experimental
@@ -269,4 +463,4 @@ Reason: the repository has a defensible documented API implementation boundary a
 
 ## REPORT INTEGRITY RULE
 
-This report is evidence, not runtime proof. Never promote NOT VERIFIED to PASS without new direct evidence. Any subsequent source/config/CI/runtime change requires current-HEAD revalidation.
+This report is evidence, not runtime proof. Never promote NOT VERIFIED to PASS without new direct evidence. Any subsequent source/config/CI/runtime change requires current-HEAD revalidation. The /x10 section is adversarial verification, not an excuse to weaken the evidence gate.
