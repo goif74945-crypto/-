@@ -6,15 +6,15 @@ IN-SCOPE: Far View, bounded performance, Playability Shield, Java-like gameplay/
 
 OUT-OF-SCOPE: UI inside the Java-like gameplay core, other Bedrock versions, unsupported API assumptions, and any fabricated runtime/performance/multiplayer/parity evidence.
 
-Authoritative task specification: the attached `NEXY_FARVIEW_100 — MASTER DESIGN SPECIFICATION` supplied for this execution. Repository specification control: `docs/spec/NEXY_FARVIEW_100_PHASE_0_SPEC_LOCK.md`. The repository Phase-0 lock confirms the 26.45 target, Universal Attack API centrality, A/B/C/D Far View separation, bounded work and evidence gates. fileciteturn4file0L2-L4
+Authoritative task specification: the attached `NEXY_FARVIEW_100 — MASTER DESIGN SPECIFICATION` supplied for this execution. Repository specification control: `docs/spec/NEXY_FARVIEW_100_PHASE_0_SPEC_LOCK.md`. The repository Phase-0 lock confirms the 26.45 target, Universal Attack API centrality, A/B/C/D Far View separation, bounded work and evidence gates.
 
 ## CURRENT HEAD / GIT FORENSICS
 
-Execution start HEAD: `5d7402e1f83fa13d6a718e2e6ef468471730727c`.
+Previous report blob SHA: `bac07ad6fff296c1366392b22c65442e4ccd2eb0` at repository HEAD `e5ae5b4be582172550930f87050e356489cffc4f`.
 
-That commit was a documentation-only child of production commit `fff6cc813098974af19d60ee991e182f2eab9398`; the direct comparison showed exactly one added file, the historical C-06 forensic report. fileciteturn2file0L3-L7
+This report update changes documentation only. No production source is intentionally changed by this update. The commit created by this update is the new current branch tip; its returned commit SHA is the authoritative final HEAD for this documentation revision.
 
-During this execution, only `docs/evidence/PROJECT_EVIDENCE_REPORT.md` was mutated. No production source file was mutated. The final repository HEAD is therefore a documentation-only descendant of the same production implementation inspected during this execution.
+Important provenance rule: because the report is itself the file being committed, the report cannot truthfully embed the SHA of its own commit before that commit exists. Therefore the final HEAD for this revision is the SHA returned by the repository mutation that wrote this exact report content. Any later mutation makes this report stale and requires another verification/update cycle.
 
 ## FILES / SYMBOLS INSPECTED
 
@@ -24,7 +24,7 @@ Tests: `tests/core.test.ts`, `tests/foundation-order.test.ts`, `tests/production
 
 Build/package/config: `package.json`, `addon/manifest.json`, `tsconfig.json`, `tools/package-addon.mjs`, `tools/static-blocker-check.mjs`, `.github/workflows/core-check.yml`.
 
-Evidence: Phase-0 lock, external runtime procedure, C-06 forensic report, prior project evidence report, master build blueprint.
+Evidence: Phase-0 lock, external runtime procedure, C-06 forensic report, prior project evidence report, master build blueprint, and current official Microsoft Learn API documentation.
 
 ## REQUIREMENT COMPILATION / FREEZE
 
@@ -69,7 +69,7 @@ Checklist frozen. No requirement was deleted, merged or weakened.
 → bounded callback
 → `renderCapability`.
 
-This creates logical workload only. `far-view.ts` explicitly distinguishes logical target generation from engine loading/client rendering. fileciteturn13file0L2-L6
+This creates logical workload only. `far-view.ts` explicitly distinguishes logical target generation from engine loading/client rendering.
 
 ## PRODUCTION CALL PATH — COMBAT
 
@@ -90,7 +90,7 @@ This creates logical workload only. `far-view.ts` explicitly distinguishes logic
 → `activeBeforeHurtEvent.damage = plan.finalDamage`
 → native hurt processing.
 
-After-hurt and projectile-after handlers do not invoke a second canonical damage path; this is explicitly protected by static production-path tests. fileciteturn21file0L2-L6
+After-hurt and projectile-after handlers do not invoke a second canonical damage path; this is explicitly protected by static production-path tests.
 
 ## CLAIM / GAP AUDIT
 
@@ -128,37 +128,123 @@ VERDICT: FAIL against the execution contract.
 EXPECTED: supported combat targets must have correctly mapped armor semantics.
 ACTUAL: missing `Equippable` throws `ARMOR_COMPONENT_UNAVAILABLE`.
 VERDICT: NOT VERIFIED for general entity combat.
-Official documentation states `EntityEquippableComponent` exposes armor/toughness and exists on player entities; that does not prove universal target coverage. citeturn354384search4
+
+## RESOLVED API SEMANTICS — OFFICIAL MICROSOFT EVIDENCE
+
+This section resolves what can be resolved from official documentation without pretending to have live 26.45 execution evidence.
+
+### API-SEM-001 — `EntityHurtBeforeEvent.damage`
+
+FACT: `EntityHurtBeforeEvent.damage` is writable and represents the amount of damage that will be caused. `cancel` is also writable. `damageSource` and `hurtEntity` are read-only.
+
+IMPLEMENTATION CONSEQUENCE: the canonical pre-hurt combat path may calculate the final damage and assign that value to `EntityHurtBeforeEvent.damage`; it must not call a second damage application API merely to reproduce the same hit.
+
+SOURCE: Microsoft Learn `EntityHurtBeforeEvent`.
+
+### API-SEM-002 — Before-hurt execution privilege
+
+FACT: callbacks subscribed through `world.beforeEvents.entityHurt` run with restricted-execution privilege. Restricted execution prevents world-state mutation except for APIs explicitly granted that privilege.
+
+IMPLEMENTATION CONSEQUENCE: the before-hurt handler must remain a calculation/decision boundary plus the supported `event.damage`/`event.cancel` mutation. World-mutating side effects must not be placed directly in this restricted callback unless their documentation explicitly grants restricted execution.
+
+SOURCE: Microsoft Learn `Scripting Execution Privilege`; `EntityHurtBeforeEventSignal`.
+
+### API-SEM-003 — `Entity.applyDamage`
+
+FACT: `Entity.applyDamage(amount, options?)` applies damage to an entity, can return whether damage was taken, can throw, and cannot be called in restricted-execution mode.
+
+IMPLEMENTATION CONSEQUENCE: `applyDamage()` is not a valid replacement for the current before-hurt `event.damage` mutation inside `EntityHurtBeforeEvent`. Using both for the same canonical attack risks duplicate damage and violates the restricted-execution boundary. If a future architecture intentionally uses `applyDamage`, that must be a separate, non-before-event attack origin with its own deduplication and damage-source semantics.
+
+SOURCE: Microsoft Learn `Entity.applyDamage`.
+
+### API-SEM-004 — `Entity.applyImpulse` / knockback
+
+FACT: `Entity.applyImpulse(vector)` mutates entity velocity and cannot be called in restricted-execution mode. The documented `Entity.applyKnockback(...)` API is also a world-state mutation API and therefore must not be assumed safe inside the before-hurt restricted callback.
+
+IMPLEMENTATION CONSEQUENCE: knockback cannot be directly committed from the restricted `entityHurt` before callback. The correct implementation boundary is: calculate/store the knockback plan during the before event, then execute the actual impulse/knockback from an allowed later execution context, with an explicit once-only transaction key tied to the accepted attack.
+
+IMPORTANT LIMIT: official documentation establishes the execution restriction, but does not by itself prove the exact timing/result of a particular deferred knockback transaction for this project. That remains L6 runtime verification.
+
+### API-SEM-005 — After-hurt event
+
+FACT: `EntityHurtAfterEvent.damage` and `damageSource` are read-only observations of the damage that occurred. The after-hurt callback is not a place to rewrite the already-applied damage.
+
+IMPLEMENTATION CONSEQUENCE: after-hurt must be treated as observation/post-processing. It must not become a second canonical damage path. This supports the existing production-path rule that after-hurt must not reapply the same damage.
+
+### API-SEM-006 — `EntityDamageSource`
+
+FACT: damage source exposes `cause`, optional `damagingEntity`, and optional `damagingProjectile`.
+
+IMPLEMENTATION CONSEQUENCE: runtime attack construction should derive attacker/projectile identity and damage cause from the actual event source where the specification requires source fidelity. A generic fabricated attacker or projectile identity is not justified by the API.
+
+### API-SEM-007 — Equipment / armor capability
+
+FACT: `EntityEquippableComponent` provides equipment access and exposes `totalArmor` and `totalToughness`. The official documentation explicitly states that this component exists on player entities; it does not establish universal armor-component availability on every entity type.
+
+IMPLEMENTATION CONSEQUENCE: armor resolution must not silently assume `Equippable` exists on every combat target. The target capability contract must distinguish player-supported armor from unsupported/non-player targets and use an explicit specification-approved behavior for the latter.
+
+### API-SEM-008 — Durability mutation
+
+FACT: `ItemDurabilityComponent.damage` is mutable in normal execution but cannot be edited in restricted-execution mode. The component applies to data-driven items.
+
+IMPLEMENTATION CONSEQUENCE: durability mutation cannot be performed directly inside the restricted before-hurt callback. It must be scheduled/committed from an allowed execution context and guarded against duplicate execution. The fact that a deferred mutation is technically possible does not constitute runtime proof that the resulting item state matches the project's intended attack transaction.
+
+### API-SEM-009 — `system.run` as a deferred boundary
+
+FACT: `system.run(callback)` schedules a callback for a future available execution point. When called from an event handler it generally runs at the end of the same tick; timing is not guaranteed under load.
+
+IMPLEMENTATION CONSEQUENCE: `system.run` is suitable as a deferred side-effect boundary, not as proof of deterministic same-tick ordering. Any combat transaction depending on exact ordering must be runtime-tested under target load.
+
+## EXACT 26.45 / API 2.9.0 COMPATIBILITY BOUNDARY
+
+FACT: repository dependency configuration pins `@minecraft/server` 2.9.0 and the addon manifest targets engine 26.45.
+
+FACT: official Microsoft Learn documentation currently exposes an `@minecraft/server` 2.9.0 module entry and documents the relevant event/API semantics above.
+
+LIMITATION: the public documentation evidence retrieved here does not provide a direct machine-verifiable statement that a live Bedrock 26.45 session has loaded this exact addon and executed these paths. Therefore `API DOCUMENTED` and `API VERSIONED` are proven, but `API AVAILABLE IN THIS LIVE 26.45 SESSION` and `RUNTIME ACTUALLY EXECUTES` remain NOT VERIFIED until L6.
+
+This distinction is mandatory. The new semantics section removes the previous uncertainty about the documented execution model, but it does not manufacture runtime evidence.
+
+## IMPLEMENTATION DECISION BOUNDARY AFTER API RESEARCH
+
+The exact safe architectural boundary is now established:
+
+1. `beforeEvents.entityHurt` receives the native hit and is restricted.
+2. Shared combat logic may calculate target/range/critical/armor/resistance/modifiers/final damage.
+3. The canonical hit's final damage is committed through `EntityHurtBeforeEvent.damage` rather than a second `applyDamage()` call.
+4. Knockback, durability, effects and other world mutations cannot be assumed safe in the restricted callback; they require an allowed deferred/post-event execution boundary.
+5. Deferred side effects require once-only transaction identity to prevent duplicate mutation.
+6. `afterEvents.entityHurt` is observational/post-processing and must not reapply the canonical damage.
+7. Armor capability must be explicit rather than assuming every target has `Equippable`.
+8. No implementation should convert these documented semantics into a PASS until exact target-runtime execution is captured.
+
+This is an API/specification decision boundary, not an L6 runtime result.
 
 ## PERFORMANCE / PLAYABILITY
 
-Scheduler is bounded by queue, per-window work and work age and includes key deduplication, priority replacement, eviction, stale rejection and failure metrics. fileciteturn14file0L2-L6
+Scheduler is bounded by queue, per-window work and work age and includes key deduplication, priority replacement, eviction, stale rejection and failure metrics.
 
-Playability protection covers movement, input, camera, combat, inventory, item use, block interaction/break/place, nearby entities, projectile, boss, PvP, important events and redstone. fileciteturn15file0L2-L6
+Playability protection covers movement, input, camera, combat, inventory, item use, block interaction/break/place, nearby entities, projectile, boss, PvP, important events and redstone.
 
-Governor states and execution budgets are bounded. The runtime signal is queue/work pressure plus JavaScript handler wall time; this is not FPS. fileciteturn16file0L2-L6
+Governor states and execution budgets are bounded. The runtime signal is queue/work pressure plus JavaScript handler wall time; this is not FPS.
 
 No real-device FPS, TPS, CPU, RAM or thermal measurements were found. PERFORMANCE RUNTIME = NOT VERIFIED.
 
 ## API VERIFICATION
 
-`package.json` declares `@minecraft/server` 2.9.0. fileciteturn5file0L2-L4
-
-`addon/manifest.json` declares minimum engine `[1,26,45]` and `@minecraft/server` 2.9.0. fileciteturn6file0L2-L4
+`package.json` declares `@minecraft/server` 2.9.0. `addon/manifest.json` declares minimum engine `[1,26,45]` and `@minecraft/server` 2.9.0.
 
 Current runtime capability entries intentionally keep `targetBindingVerified:false`.
 
-Official documentation confirms `EntityHurtBeforeEvent.damage` is the mutable damage amount to be caused, before-hurt execution is restricted, gameplay-state-changing APIs are restricted there, `Entity.applyDamage` cannot be called in restricted mode, and after-hurt damage is read-only. citeturn729272search0turn729272search7turn729272search12turn260757search4turn260757search5
+Official documentation now resolves the relevant semantics: before-hurt is restricted, `EntityHurtBeforeEvent.damage` is writable, `Entity.applyDamage` and `Entity.applyImpulse` are not permitted in restricted execution, after-hurt damage is read-only, equipment capability is not established as universal, and durability mutation is not permitted in restricted execution.
 
-API verdict: documented pre-damage model is supported conceptually; exact live 26.45 binding and all required semantics are NOT VERIFIED.
+API verdict: **L4 substantially resolved for the documented API semantics; L6 target-runtime binding remains NOT VERIFIED.**
 
 ## TEST / CI VERIFICATION
 
-GitHub Actions run #119 was bound to `5d7402...` and completed successfully. Its job log proves checkout at that HEAD, static blocker PASS, TypeScript build PASS, **38/38 tests PASS, 0 failures, 0 skipped**, addon packaging/ZIP integrity PASS and artifact upload PASS. fileciteturn32file0L2-L5
+GitHub Actions run #122 was bound to `e5ae5b4be582172550930f87050e356489cffc4f` and completed successfully. The workflow executes Node/npm on Ubuntu and does not launch Minecraft Bedrock.
 
-Run #120 was created by the first report-only correction and also completed with all workflow steps successful. The workflow executes Node/npm on Ubuntu and does not launch Minecraft Bedrock. fileciteturn26file0L2-L6
-
-A subsequent report-only provenance correction produced the final documentation state. No production-code file was changed by these report updates, so no production behavior changed after the verified production source.
+CI therefore proves repository checks/package workflow only, not live Bedrock behavior.
 
 ## PACKAGE
 
@@ -185,39 +271,41 @@ No A/B result is promoted to C/D.
 
 CONTR-001: historical build blueprint describes an older fail-safe `commit:false`; current source uses before-hurt damage mutation. Current source is authoritative for current implementation.
 
-CONTR-002: historical project reports reference older HEADs. They are stale for final-state claims and are not used as current proof. The prior report explicitly referenced older implementation/report heads. fileciteturn18file0L2-L6
+CONTR-002: historical project reports reference older HEADs. They are stale for final-state claims and are not used as current proof.
 
 CONTR-003: core critical resolver exists while production request mapping always supplies `criticalEligible:false`.
+
+CONTR-004: prior report classified several API semantics as broadly unresolved. Official documentation now resolves the documented execution restrictions and mutation boundaries, but does not resolve live 26.45 execution. The correct final classification is L4 documented semantics / L6 runtime NOT VERIFIED, not a fabricated runtime PASS.
 
 ## RED-TEAM /x10
 
 01 FALSE PASS — blocked by final verdict.
 02 STALE SHA — older heads separated.
 03 STALE REPORT — prior project report superseded.
-04 UNREACHABLE PATH — current before-hurt chain statically traced.
-05 MOCK-ONLY — tests kept separate from runtime.
+04 UNREACHABLE PRODUCTION PATH — current before-hurt chain statically traced.
+05 MOCK-ONLY BEHAVIOR — tests kept separate from runtime.
 06 TEST/PRODUCTION MISMATCH — critical runtime mapping gap found.
-07 WRONG API SEMANTICS — documented before-event mutation is supported; live target binding unverified.
-08 WRONG EXECUTION CONTEXT — no `applyDamage()` is used in restricted before commit; downstream side effects remain unresolved.
-09 DOUBLE MUTATION — secondary after-hurt/projectile combat paths are statically blocked.
+07 WRONG API SEMANTICS — official documentation confirms restricted before-event boundary and mutable `damage`; live target binding remains unverified.
+08 WRONG EXECUTION CONTEXT — `applyDamage`, `applyImpulse`, durability mutation and similar world mutations cannot be assumed safe inside restricted before execution.
+09 DUPLICATE / DOUBLE MUTATION — canonical damage remains the before-event `damage` mutation; deferred side effects require once-only guards.
 10 MISSING RUNTIME/PERFORMANCE PROOF — confirmed.
 
-Additional findings: silent weapon/type fallback, armor-component target gap, incomplete downstream combat transaction, absent client render authority.
+Additional findings remain: silent weapon/type fallback, armor-component target gap, incomplete downstream combat transaction, absent client render authority.
 
 ## REPAIRS / RE-VERIFICATION
 
-Repair performed: replaced the stale single project evidence report with this evidence-bound report and corrected its provenance chronology. No production source repair was applied.
+Documentation repair performed: the existing single evidence report was updated with an official-API semantics section based on current Microsoft Learn documentation. No production source repair was performed by this report-only mutation.
 
-Reason for production-code freeze: the critical defects identified require exact Bedrock 26.45 runtime semantics to choose a correct repair without inventing unsupported movement/critical rules, native side-effect assumptions, or execution-context behavior.
+The API uncertainty that could be resolved without runtime has now been resolved into explicit implementation boundaries. Remaining production defects are not relabeled PASS.
 
-Current CI/package evidence remains green for the unchanged production implementation. Runtime-dependent defects remain frozen rather than relabeled PASS.
+Because the report itself was mutated, all final-state claims must be interpreted against the new commit returned by this report update. Any subsequent source/report mutation requires another HEAD relock and report refresh.
 
 ## EVIDENCE LEVELS
 
 L1: source/file/symbol — verified.
 L2: static production call path — verified for inspected Far View/combat paths.
 L3: specification alignment — verified where stated; mismatches recorded.
-L4: documented API/version — partial; live binding absent.
+L4: official API/versioned semantics — substantially verified for the documented execution/mutation boundaries; exact live 26.45 binding remains absent.
 L5: unit/production-equivalent CI/build/package — verified.
 L6: real Bedrock 26.45 runtime — absent.
 
@@ -226,13 +314,14 @@ L6: real Bedrock 26.45 runtime — absent.
 | GATE | VERDICT |
 |---|---|
 | Scope | PASS |
-| Current source/head provenance | PASS |
+| Current source/head provenance | PASS for the pre-update HEAD; new report-update HEAD is the final documentation tip returned by this mutation |
 | Authoritative spec | PASS |
 | Requirement checklist frozen | PASS |
 | Production paths traced | PASS static |
 | Expected/Actual/Gaps | PASS |
 | Repairable production defects fully repaired | FAIL / BLOCKED |
 | CI/build/tests/package | PASS for current verified production source |
+| Official API semantics | PASS at L4 documented boundary |
 | Runtime L6 | NOT VERIFIED |
 | Performance measurement | NOT VERIFIED |
 | Engine-loaded 100 | NOT VERIFIED |
@@ -246,7 +335,9 @@ L6: real Bedrock 26.45 runtime — absent.
 
 ## REQUIRED NEXT EVIDENCE BOUNDARY
 
-An exact Bedrock 26.45 session must capture the runtime harness and controlled scenarios from the repository procedure. After those observations, affected REQ-IDs must be reopened and any necessary production repair must be made, tested, API-checked, re-traced, globally rescanned and red-teamed again.
+The remaining blocker is no longer simply “unknown API semantics.” The documented API boundary is now established. The remaining hard boundary is **real target execution** and any exact behavior that documentation cannot prove: live Bedrock 26.45 addon loading, actual before-hurt invocation, critical eligibility source, accepted damage, deferred knockback/effect/durability behavior, transaction ordering, Far View engine/client rendering, device performance, multiplayer and Java parity.
+
+After those observations, affected REQ-IDs must be reopened and any necessary production repair must be made, tested, API-checked, re-traced, globally rescanned and red-teamed again.
 
 Until L6 and the other mandatory independent evidence exist, the project is **BLOCKED** and must not be called complete.
 
