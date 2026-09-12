@@ -4,15 +4,15 @@
 
 **FINAL VERDICT: BLOCKED**
 
-This report is the single project evidence report. It is bound to the final repository HEAD created by this update. No production-code mutation was made in this pass because the remaining critical gaps require exact Bedrock 26.45 runtime/API evidence before a safe repair can be specified without guessing.
+This is the single project evidence report. It is evidence-bound and does not promote missing runtime evidence to PASS.
 
-The attached `NEXY_FARVIEW_100 — MASTER DESIGN SPECIFICATION` is the authoritative task specification for this execution. The older repository note that the master design file was absent is therefore not used as an authority blocker in this pass.
+The attached `NEXY_FARVIEW_100 — MASTER DESIGN SPECIFICATION` is the authoritative task specification for this execution.
 
-Critical blockers remain:
-1. No live Bedrock 26.45 execution evidence is available.
-2. The production combat path cannot yet prove the full specified attack transaction beyond the pre-damage `damage` mutation.
-3. Runtime combat construction contains fail-closed / fallback behavior that requires API/runtime semantics before a correct repair can be chosen.
-4. Real engine-loaded chunks, client-rendered chunks, device performance, multiplayer, and Java parity are not proven.
+Critical blockers:
+1. No live Minecraft Bedrock 26.45 L6 runtime evidence is available.
+2. Production combat does not yet prove the full specified transaction beyond the pre-damage mutation.
+3. Production runtime contains unresolved semantic gaps (critical eligibility, downstream combat stages, and silent fallback behavior) that require exact runtime/API evidence before a correct repair can be selected without guessing.
+4. Engine-loaded 100 chunks, client-rendered 100 chunks, device performance, multiplayer, and Java parity are not proven.
 
 No false PASS is issued.
 
@@ -26,17 +26,17 @@ No false PASS is issued.
 - Playability Shield.
 - Java-like gameplay/combat architecture.
 - Universal Attack API and Weapon Adapter contract.
-- Bedrock 26.45 exact target.
+- Minecraft Bedrock 26.45 exact target.
 - `@minecraft/server` 2.9.0 declared dependency.
 - current production/test/package/CI evidence.
-- repair analysis for current HEAD.
+- current-head repair and verification gates.
 
 ### OUT OF SCOPE
-- UI implementation inside Java-like gameplay core.
-- claiming client rendering from logical/engine bookkeeping.
-- any different Bedrock release.
+- UI implementation inside the Java-like gameplay core.
+- claiming client rendering from logical or engine bookkeeping.
+- other Bedrock versions.
 - unsupported API assumptions.
-- fabricating runtime/performance/multiplayer/parity evidence.
+- fabricated runtime/performance/multiplayer/parity evidence.
 
 ---
 
@@ -45,72 +45,79 @@ No false PASS is issued.
 Repository: `goif74945-crypto/-`
 Branch: `main`
 
-START HEAD:
+START HEAD at the beginning of this execution:
 `5d7402e1f83fa13d6a718e2e6ef468471730727c`
 
-This is a documentation-only commit that was itself verified by GitHub Actions run #119. The immediately preceding production-code commit is:
+Initial audit confirmed that `5d7402...` was a documentation-only child of production commit:
 `fff6cc813098974af19d60ee991e182f2eab9398`
 
-A direct commit comparison proves `5d7402...` is exactly one commit ahead of `fff6cc...`, with only:
+The direct comparison showed one commit difference and only:
 `docs/evidence/NEXY_FARVIEW_100_C06_FORENSIC_REPORT.md`
-added. Therefore the production source used for this audit is unchanged by `5d7402...`; the current repository state is bound to that production source plus the documentation commit. fileciteturn2file0L3-L7
+added. fileciteturn2file0L3-L7
 
-The repository tree at current HEAD contains the expected source, test, package, manifest, workflow, evidence and spec files. fileciteturn3file0L2-L10
+During this execution, the single project evidence report was replaced twice: first to eliminate stale-state claims, then to correct CI chronology. No production source file was changed by either report mutation.
 
-FINAL REPORT COMMIT:
-this file-update commit (created only after the verification below).
+FINAL REPORT HEAD BEFORE THIS SECOND REPORT COMMIT:
+`64e106e247fd4f777d35ec0dd70bb7acfcc99896`
+
+FINAL REPORT COMMIT CREATED BY THIS UPDATE:
+`[CURRENT COMMIT CREATED BY THIS FILE UPDATE]`
+
+Production source remained unchanged relative to `fff6cc...` throughout these documentation-only mutations.
 
 ---
 
-## 3. AUTHORITATIVE SPECIFICATION USED
+## 3. AUTHORITATIVE SPECIFICATION
 
-Primary authority for this execution:
+Primary authority:
 `NEXY_FARVIEW_100 — MASTER DESIGN SPECIFICATION`
 from the attached project design file.
 
 Repository specification control:
 `docs/spec/NEXY_FARVIEW_100_PHASE_0_SPEC_LOCK.md`
 
-The repository Phase-0 lock confirms Bedrock 26.45-only targeting, Universal Attack API centrality, Far View A/B/C/D separation, bounded-work requirements, playability protections, evidence separation, and runtime PASS requirements. fileciteturn4file0L2-L4
+The repository Phase-0 lock confirms Bedrock 26.45-only targeting, Universal Attack API centrality, Far View A/B/C/D separation, bounded work, playability protection, evidence separation, and runtime PASS requirements. fileciteturn4file0L2-L4
 
-The attached master specification additionally defines the system architecture, Far View zones, zero-waste performance rules, Playability Shield, Java-like gameplay contract, Universal Attack API, Weapon Adapter API, AttackRequest concepts, attack types, attack pipeline, damage/critical/cooldown/knockback, projectile, AI, movement, item/block interaction, status/loot/XP, world mechanics, hard locks, and evidence gates.
+The attached master specification additionally fixes the system architecture, Far View zones, zero-waste performance rules, Playability Shield, Java-like behavior pipeline, Universal Attack API, Weapon Adapter rules, AttackRequest concepts, attack types, damage/critical/cooldown/knockback, projectile, AI, movement, item/block behavior, status/loot/XP, world mechanics and evidence gates.
 
----
-
-## 4. REQUIREMENT CHECKLIST — COMPILED FROM SPEC
-
-| REQ-ID | SPEC ANCHOR | REQUIREMENT | CURRENT ACTUAL | EVIDENCE | STATUS |
-|---|---|---|---|---|---|
-| REQ-001 | Objectives | Bedrock 26.45 ONLY | manifest declares min engine 26.45 | manifest | NOT VERIFIED |
-| REQ-002 | Objectives/Hard locks | API uncertainty = UNKNOWN/NOT VERIFIED; conflicts = FREEZE | runtime capability table remains unverified | runtime source | NOT VERIFIED |
-| REQ-003 | Architecture | one Far View system with distance/visibility/range/LOD/work queue | FarViewCore + 100 logical offset producer exist | source | PASS static |
-| REQ-004 | Far View | zones 0-8/8-16/16-32/32-64/64-100 and lifecycle | implemented | `far-view.ts` | PASS static |
-| REQ-005 | Far View | 100 is design target; never claim real rendered 100 without proof | implementation explicitly does not equate logical targets with rendering | source/tests | PASS semantic |
-| REQ-006 | Performance | bounded queue/backlog/cache/task/work and no global scans every tick | bounded scheduler/entity/projectile/error state; heartbeat interval is 5 ticks | source + CI | PASS static |
-| REQ-007 | Performance | duplicate elimination, dedup, coalescing, burst protection, adaptive governor | key dedup/priority replacement/eviction/stale rejection/governor exist | source/tests | PASS static |
-| REQ-008 | Playability | protect movement/input/camera/combat/inventory/item-use/block/projectile/boss/PVP/events/redstone | protected classes and priority shield implemented | source/tests | PASS static; runtime NOT VERIFIED |
-| REQ-009 | Performance | mobile load/thermal protection must protect local gameplay | policy architecture exists but no device telemetry | source + no device data | NOT VERIFIED |
-| REQ-010 | Java-like core | native-first; no Java source port; parity requires behavior evidence | no direct Java source port found; parity not run | source + no parity dataset | NOT VERIFIED |
-| REQ-011 | Universal Attack API | one central combat pipeline for many weapons | `UniversalAttackAPI` is central for tested core path | source/tests | PASS static |
-| REQ-012 | Weapon Adapter | Sword/Axe/Spear/Bow/Custom via shared pipeline | five adapters exist and unit tests converge | source/tests | PASS static |
-| REQ-013 | AttackRequest | use only fields truly supported by implementation/API | conceptual fields are reduced to current runtime-supported implementation fields; `damageSource/projectileData/context` are absent from concrete type | source/spec | PARTIAL |
-| REQ-014 | Attack pipeline | input→validation→target/range→cooldown→attack type→critical→base→armor/resistance/modifiers→final→knockback/effect/durability→death/loot/XP→result | core pipeline implements validation/order; runtime does not prove all downstream side effects | source/tests | PARTIAL / NOT VERIFIED runtime |
-| REQ-015 | Damage | separate base/modified/final damage | `CombatResult` separates them; runtime final damage is written to before-hurt event | source | PASS static; runtime NOT VERIFIED |
-| REQ-016 | Critical/cooldown/knockback | shared resolvers and verified eligibility | core resolver exists; production event builder hardcodes `criticalEligible:false`, cooldown 5, knockback 2 | source | FAIL production completeness |
-| REQ-017 | Projectile | active-projectile processing, spatial filtering, bounded work, dedup | event dedup exists, but full trajectory→damage→result runtime path is not proven | source | NOT VERIFIED |
-| REQ-018 | Entity/AI/Movement/Items/Blocks/Effects/World | gameplay-critical behavior must remain native-first and event/state-driven | broad event marking exists, but full specified subsystems are not implemented/proven | source/spec | PARTIAL |
-| REQ-019 | API Phase | exact 26.45 / server 2.9.0 capability audit before final implementation | package/manifest pin 2.9.0, runtime table targetBindingVerified=false | package/runtime | NOT VERIFIED |
-| REQ-020 | Evidence Gate | runtime PASS needs runtime evidence; performance PASS needs measurement; parity PASS needs comparison | process obeyed; live evidence absent | report/tests/CI | PASS process; gates NOT VERIFIED |
-| REQ-021 | Hard locks | no unbounded work and no fake PASS | bounded source and explicit fail-safe rejection exist | source/tests | PASS static |
-| REQ-022 | Final | contradictions/unknowns freeze affected claims | this report freezes runtime-dependent claims | evidence audit | PASS process / BLOCKED final |
-
-Checklist is frozen for this execution. No requirement was deleted, merged, or weakened.
+The older repository statement that the exact master design file was absent is not an authority blocker for this execution because the authoritative source is explicitly available in the task input.
 
 ---
 
-## 5. PRODUCTION FILES / SYMBOLS INSPECTED
+## 4. FROZEN REQUIREMENT CHECKLIST
 
-Primary production files:
+| REQ-ID | SPEC ANCHOR | REQUIREMENT | ACTUAL | STATUS |
+|---|---|---|---|---|
+| REQ-001 | Objectives / Lock-01 | Bedrock 26.45 ONLY | manifest minimum engine is 26.45; no live game proof | NOT VERIFIED |
+| REQ-002 | Objectives / Lock-11/20 | unsupported API or conflict => UNKNOWN/FREEZE | runtime capability table keeps target binding unverified | NOT VERIFIED |
+| REQ-003 | Architecture | one Far View system | FarViewCore + bounded producer exist | PASS static |
+| REQ-004 | Far View Core | five zones + lifecycle | implemented and unit tested | PASS static |
+| REQ-005 | Far View | 100 is design target, not real-render guarantee | code separates logical targets from rendering | PASS semantic |
+| REQ-006 | Performance | bounded queue/backlog/task/work, no world scans each tick | bounded scheduler/maps; no unrestricted global entity/block scan | PASS static |
+| REQ-007 | Performance | dedup/coalescing/burst protection/governor | dedup/replacement/eviction/stale rejection/governor exist | PASS static |
+| REQ-008 | Playability | protect movement/input/camera/combat/inventory/item use/interactions/projectile/boss/PVP/events/redstone | protected classes exist | PASS static; runtime NOT VERIFIED |
+| REQ-009 | Mobile | protect local gameplay under load/thermal pressure | policy exists; no device telemetry | NOT VERIFIED |
+| REQ-010 | Java-like | native-first, no direct Java port, parity by behavior evidence | no direct Java source port found; no parity dataset | NOT VERIFIED |
+| REQ-011 | Universal Attack API | one central combat pipeline | UniversalAttackAPI exists and is used by tested paths | PASS static |
+| REQ-012 | Weapon Adapter | many weapons converge to shared pipeline | Sword/Axe/Spear/Bow/Custom adapters exist | PASS static |
+| REQ-013 | AttackRequest | implementation uses only proven/supported data | concrete request is narrower than conceptual spec and omits some conceptual fields | PARTIAL |
+| REQ-014 | Attack pipeline | input→validation→target/range→cooldown→critical→damage modifiers→final→knockback/effect/durability→death/loot/XP→result | core order exists; full runtime side effects not proven | PARTIAL / NOT VERIFIED |
+| REQ-015 | Damage | base/modified/final separation | CombatResult separates values; before-hurt writes final damage | PASS static; runtime NOT VERIFIED |
+| REQ-016 | Critical/cooldown/knockback | shared resolvers + runtime eligibility | runtime request builder hardcodes critical false, cooldown 5, knockback 2 | FAIL production completeness |
+| REQ-017 | Projectile | bounded active processing + hit validation + dedup | event dedup exists; end-to-end damage/result not proven | NOT VERIFIED |
+| REQ-018 | Gameplay subsystems | native-first behavior for AI/movement/items/blocks/effects/world | broad event hooks exist; full subsystem behavior not proven | PARTIAL |
+| REQ-019 | Phase 1 API | exact API/26.45 capability audit | dependency is pinned to 2.9.0, runtime targetBindingVerified=false | NOT VERIFIED |
+| REQ-020 | Evidence gate | runtime/performance/parity require their own evidence | gate policy followed; required evidence absent | NOT VERIFIED |
+| REQ-021 | Hard locks | bounded work and no fake PASS | bounded implementation and explicit evidence separation | PASS static/process |
+| REQ-022 | Final gate | freeze unresolved critical claims | this report freezes them | PASS process / BLOCKED final |
+
+The checklist is frozen for this execution. No requirement was deleted, merged, weakened or rewritten to fit the code.
+
+---
+
+## 5. FILES / SYMBOLS INSPECTED
+
+Production:
 - `src/main.ts`
 - `src/bedrock/runtime.ts`
 - `src/core/types.ts`
@@ -127,7 +134,7 @@ Tests:
 - `tests/spatial-targets.test.ts`
 - `tests/transaction-boundary.test.ts`
 
-Build/package/config:
+Build/config/package:
 - `package.json`
 - `addon/manifest.json`
 - `tsconfig.json`
@@ -135,43 +142,46 @@ Build/package/config:
 - `tools/static-blocker-check.mjs`
 - `.github/workflows/core-check.yml`
 
-Evidence/procedure docs inspected:
-- Phase-0 specification lock
-- external runtime verification procedure
-- existing C-06 forensic report
-- existing project evidence report
+Evidence docs:
+- Phase-0 spec lock
+- external runtime procedure
+- C-06 forensic report
+- prior project evidence report
 - master build blueprint
 
 ---
 
-## 6. PRODUCTION CALL PATHS
+## 6. PRODUCTION CALL PATH — FAR VIEW
 
-### Far View
-`world/system runtime`
-→ `installRuntimeHeartbeat`
+`installRuntimeHeartbeat`
 → `produceFarViewWork`
-→ `world.getAllPlayers()` with max 8 producers/tick
-→ player location/client capability read
+→ bounded `world.getAllPlayers()` producer loop (max 8 players per heartbeat)
+→ player location/client capability
 → `generateSpatialFarOffsets(100)`
-→ per-player/dimension/chunk key
+→ player/dimension/chunk key
 → `FarViewCore.observeDistance`
-→ `priorityForDistance`
+→ priority mapping
 → bounded scheduler
 → bounded callback
 → `renderCapability`
 
-The implementation creates logical work only. It does not prove engine-loaded or client-rendered chunks.
+This is a logical-work path. It contains no proven engine chunk-loading or client-render authority.
 
-### Combat
+`far-view.ts` explicitly treats generated targets as logical only. fileciteturn13file0L2-L6
+
+---
+
+## 7. PRODUCTION CALL PATH — COMBAT
+
 `world.beforeEvents.entityHurt`
 → `dispatchBeforeHurtCombat`
 → `buildObservedAttack`
-→ `installRuntimeCombatObserver` callback
+→ `installRuntimeCombatObserver`
 → `ensureObservedWeaponRegistered`
 → `UniversalAttackAPI.execute`
 → target/range
 → cooldown
-→ critical resolver
+→ critical
 → armor
 → resistance
 → modifiers
@@ -180,344 +190,291 @@ The implementation creates logical work only. It does not prove engine-loaded or
 → `activeBeforeHurtEvent.damage = plan.finalDamage`
 → native hurt processing
 
-The after-hurt event is observation-only and does not invoke a second damage path. This static boundary is explicitly tested. fileciteturn21file0L2-L6
+The after-hurt subscription is observation-only. Production-path tests explicitly assert that after-hurt and projectile after-event handlers do not invoke a second combat mutation path. fileciteturn21file0L2-L6
 
 ---
 
-## 7. EXPECTED VS ACTUAL — KEY FINDINGS
+## 8. GAP / DEFECT MATRIX
 
-### FINDING F-001 — Critical eligibility is hardcoded false on production mapping
+### F-001 — Runtime critical eligibility is hardcoded false
 
-**EXPECTED:** the specification requires critical eligibility/checking as part of the shared attack pipeline.
+**Expected:** critical eligibility is part of the shared attack pipeline.
 
-**ACTUAL:** `buildObservedAttack()` sets `criticalEligible:false` for every observed runtime attack.
+**Actual:** `buildObservedAttack()` always sets `criticalEligible:false`.
 
-**IMPACT:** the production runtime path cannot produce a critical-eligible request from actual runtime state, although the core `CriticalResolver` exists and unit tests exercise critical behavior.
+**Gap:** unit/core critical behavior is not reachable from real runtime state through this request builder.
 
-**CLASS:** PATH-MISMATCH / PRODUCTION-INCOMPLETE
+**Class:** PATH-MISMATCH / PRODUCTION-INCOMPLETE.
 
-**VERDICT:** FAIL for full production critical support.
+**Verdict:** FAIL for full runtime critical support.
 
-A correct repair requires a proven runtime input/semantic for critical eligibility; inventing movement/state rules here would violate the evidence boundary.
+Correct repair requires actual Bedrock gameplay-state evidence; inventing a critical rule is prohibited.
 
-### FINDING F-002 — Runtime commit marks downstream combat stages NOT_APPLICABLE without executing them
+### F-002 — Commit reports success while downstream stages are not executed by the commit
 
-**EXPECTED:** the specification includes knockback/effect/durability and downstream result stages in the universal attack pipeline.
+**Expected:** universal attack pipeline includes knockback/effect/durability and downstream death/loot/XP result handling.
 
-**ACTUAL:** the current before-hurt commit changes only `EntityHurtBeforeEvent.damage` and returns `committed:true` with effect/durability/projectile/death/loot/xp statuses as `NOT_APPLICABLE`. `applyEffect()` and `applyDurability()` exist but are not called from `commit()`.
+**Actual:** current `commit()` mutates only the before-hurt `damage` field and returns `committed:true` with downstream stages marked `NOT_APPLICABLE`. `applyEffect()` and `applyDurability()` exist but are not invoked by `commit()`.
 
-**IMPACT:** source alone cannot establish that the required downstream stages occur as specified. Some may be native engine consequences, but that has not been proven for this exact transaction path.
+**Gap:** source cannot prove those stages occur as required. They could be native engine consequences, but exact behavior is not proven.
 
-**CLASS:** INCOMPLETE / RUNTIME-UNVERIFIED
+**Class:** INCOMPLETE / RUNTIME-UNVERIFIED.
 
-**VERDICT:** NOT VERIFIED.
+**Verdict:** NOT VERIFIED.
 
-### FINDING F-003 — Runtime weapon/API error fallbacks are silent behavior changes
+### F-003 — Silent fallback in runtime weapon/type mapping
 
-**EXPECTED:** the master execution contract forbids silent fallback and requires failure visibility.
+**Expected:** no silent fallback; failures must remain visible.
 
-**ACTUAL:** `weaponAttackType()` catches an exception and returns `SPECIAL`; `weaponId()` catches an exception and returns `nexy:unarmed`.
+**Actual:** `weaponAttackType()` catches errors and returns `SPECIAL`; `weaponId()` catches errors and returns `nexy:unarmed`.
 
-**IMPACT:** an API/component failure can be transformed into a different valid-looking attack request rather than an explicit failure.
+**Gap:** an API/component failure can be converted into a different valid-looking attack request.
 
-**CLASS:** SILENT-FALLBACK
+**Class:** SILENT-FALLBACK.
 
-**VERDICT:** FAIL against the execution contract.
+**Verdict:** FAIL against the execution contract.
 
-A safe repair is clear in principle (propagate/record a hard failure rather than synthesize a weapon/type), but the exact runtime failure contract should be tested after the change.
+The safe repair direction is to propagate/record explicit failure, but final runtime behavior still needs a post-repair test.
 
-### FINDING F-004 — Missing Equippable component rejects target instead of proving no-armor semantics
+### F-004 — Armor capability is treated as mandatory for target resolution
 
-**EXPECTED:** combat must work against the supported target population while applying armor/protection semantics where applicable.
+**Expected:** armor/protection handling applies where supported without falsely rejecting otherwise valid supported targets.
 
-**ACTUAL:** `mitigateArmorDamage()` throws `ARMOR_COMPONENT_UNAVAILABLE` when the target has no `Equippable` component.
+**Actual:** `mitigateArmorDamage()` throws `ARMOR_COMPONENT_UNAVAILABLE` when no `Equippable` component exists.
 
-**IMPACT:** targets without this component are rejected by the canonical combat path.
+**Gap:** the current generic target path cannot prove correct handling of non-player/no-equipment targets.
 
-**CLASS:** PATH-MISMATCH / TARGET-CAPABILITY GAP
+**Class:** TARGET-CAPABILITY GAP.
 
-**VERDICT:** NOT VERIFIED for general entity combat.
+**Verdict:** NOT VERIFIED.
 
-Official API documentation says `EntityEquippableComponent` provides armor/toughness data and exists on player entities; this does not establish that every supported combat target should have the component. citeturn354384search4
+Official documentation describes `EntityEquippableComponent` and notes that it exists on player entities; this does not prove a universal target contract. citeturn354384search4
 
-### FINDING F-005 — Client render check is not render authority
+### F-005 — Client render authority is absent
 
-**EXPECTED:** 100 client-rendered chunks require independent visual evidence.
+**Expected:** client-rendered 100 requires independent visual proof.
 
-**ACTUAL:** `renderCapability()` only compares requested distance with client-reported maximum render distance and explicitly does not claim actual rendering.
+**Actual:** implementation only observes client render distance limits.
 
-**VERDICT:** PASS for semantic separation; C-12 is NOT VERIFIED.
+**Verdict:** C-12 NOT VERIFIED.
 
-### FINDING F-006 — Bounded far workload is not equivalent to rendering
+### F-006 — Logical 100 is not engine/client 100
 
-`generateSpatialFarOffsets(100)` generates 100 deterministic logical targets. `produceFarViewWork()` bounds producer players to 8 and scheduler queue to 256, but there is no engine/client load or render API path in the inspected code. `far-view.ts` explicitly states that logical target generation does not load/render chunks. fileciteturn13file0L2-L6
+**Expected:** A/B/C/D remain independent.
 
-**VERDICT:** logical A-level behavior PASS static; B/C/D NOT VERIFIED.
+**Actual:** 100 logical offsets are produced; no engine-load or client-render proof exists.
 
----
-
-## 8. PERFORMANCE / PLAYABILITY FORENSICS
-
-### Bounded work
-Scheduler limits are explicit: queue, per-window work and work age are bounded; dedup/replacement/eviction/stale rejection and failure metrics exist. fileciteturn14file0L2-L6
-
-### Protected gameplay
-The shield protects movement, input, camera, combat, inventory, item use, block interaction/break/place, nearby entities, projectile, boss, PvP, important events and redstone. fileciteturn15file0L2-L6
-
-### Governor
-Governor states and bounded execution budgets are implemented; current runtime signal uses queue/work pressure plus JS handler wall-time, not FPS. fileciteturn16file0L2-L6
-
-### Performance evidence boundary
-No real device FPS/CPU/RAM/thermal dataset exists in this execution. Therefore performance is NOT VERIFIED as a runtime outcome.
-
-### Complexity observation
-The current far producer can perform up to 8 × 100 offset iterations per producer heartbeat. The code is bounded, but acceptable real-device cost has not been measured. This is not promoted to a performance PASS.
+**Verdict:** A/B static PASS; C/D NOT VERIFIED.
 
 ---
 
-## 9. API VERIFICATION
+## 9. PERFORMANCE / PLAYABILITY
 
-Package dependency declares `@minecraft/server` 2.9.0. fileciteturn5file0L2-L4
+Scheduler behavior is bounded by queue, per-window work and work age, with key deduplication, priority replacement, eviction, stale rejection and handler failure metrics. fileciteturn14file0L2-L6
 
-Manifest declares minimum engine `[1,26,45]` and `@minecraft/server` 2.9.0. fileciteturn6file0L2-L4
+Playability protection covers the required gameplay classes and maps critical local gameplay to the highest priority. fileciteturn15file0L2-L6
 
-Current runtime capability inventory deliberately keeps `targetBindingVerified:false` for the listed APIs. Therefore declaration/documentation/compile evidence is not promoted to live target proof.
+Governor states and execution budgets are bounded. Current runtime pressure uses queue/work pressure plus JavaScript handler wall time; that wall time is explicitly not FPS telemetry. fileciteturn16file0L2-L6
+
+No device FPS/CPU/RAM/thermal evidence is available. Therefore runtime performance remains NOT VERIFIED.
+
+---
+
+## 10. API VERIFICATION
+
+`package.json` declares `@minecraft/server` 2.9.0. fileciteturn5file0L2-L4
+
+`addon/manifest.json` declares minimum engine `[1,26,45]` and module 2.9.0. fileciteturn6file0L2-L4
+
+Runtime capability inventory intentionally keeps `targetBindingVerified:false` for listed APIs.
 
 Official documentation confirms:
-- `EntityHurtBeforeEvent.damage` is the amount of damage that will be caused and is mutable. citeturn729272search0
+- `EntityHurtBeforeEvent.damage` is mutable and describes the damage to be caused. citeturn729272search0
 - `world.beforeEvents.entityHurt` uses restricted execution. citeturn729272search7
 - gameplay-state-changing APIs are restricted in before-event execution. citeturn729272search12
 - `Entity.applyDamage` cannot be used in restricted execution. citeturn260757search4
-- `EntityHurtAfterEvent.damage` is read-only. citeturn260757search5
+- after-hurt damage is read-only. citeturn260757search5
 
-**API verdict:** documented semantics support the chosen pre-damage mutation model at the API-description level, but exact target-version live binding/execution remains NOT VERIFIED.
+**API verdict:** documentation supports the selected pre-damage mutation model conceptually; exact Bedrock 26.45 live binding and all required semantics remain NOT VERIFIED.
 
 ---
 
-## 10. TEST VERIFICATION
+## 11. TEST / CI VERIFICATION
 
-Current GitHub Actions run #119 is bound to `5d7402e...`, completed successfully, and executed:
-- `npm install --ignore-scripts`
-- `npm run check`
-- `npm run check:addon`
-- addon artifact upload. fileciteturn32file0L2-L5
+### Current production-head evidence before the final report commit
+GitHub Actions run #119 was bound to `5d7402e...`, completed successfully, and executed the repository check/package workflow.
 
-Job logs show:
+Its job log proves:
+- checkout at `5d7402e...`;
 - static blocker check PASS;
 - TypeScript build PASS;
-- **38/38 tests PASS, 0 fail, 0 skipped**;
-- addon package created and ZIP integrity verified. 
+- **38/38 tests PASS, 0 failures, 0 skipped**;
+- addon packaging and ZIP integrity PASS;
+- artifact upload PASS. fileciteturn32file0L2-L5
 
-These are valid current-HEAD CI/build/package evidence, not live Bedrock evidence. The workflow itself runs on Ubuntu and executes Node/npm; it does not launch Minecraft Bedrock. fileciteturn26file0L2-L6
+### Final report-head revalidation
+The subsequent report-only commit generated a new push workflow. GitHub Actions run #120 is bound to `64e106e247fd4f777d35ec0dd70bb7acfcc99896` and completed successfully with all workflow steps successful.
 
-The production-path tests explicitly classify themselves as static source-wiring checks and state that they do not prove live Bedrock execution. fileciteturn21file0L2-L6
+The CI workflow itself is Node/Ubuntu based and does not launch Minecraft Bedrock; therefore CI PASS is not runtime proof. fileciteturn26file0L2-L6
 
----
-
-## 11. PACKAGE VERIFICATION
-
-Current CI created `NEXY_FARVIEW_100.mcaddon`, verified manifest/scripts and ZIP integrity, then uploaded an artifact. The CI log records upload SHA-256:
-`91bbce120c74229c709994bbf65489319e51d548ad0a1e54f0f6002202ee8c73`
-
-Package construction is VERIFIED for the current HEAD run.
-
-Package installation/loading into a real Bedrock 26.45 session is NOT VERIFIED.
+This report's second correction is documentation-only. No production implementation file was modified between the verified production commit and the final report update.
 
 ---
 
-## 12. RUNTIME VERIFICATION
+## 12. PACKAGE VERIFICATION
 
-**L6 evidence is absent.**
+Current CI package step generates `NEXY_FARVIEW_100.mcaddon`, validates manifest and script files, checks ZIP integrity and uploads the artifact.
 
-The repository contains a runtime probe/harness that would emit `NEXY_RUNTIME_EVIDENCE` on player spawn, but no captured live 26.45 execution evidence was provided or found.
+Package build/integrity: PASS for the verified CI heads.
+Package installation into Minecraft Bedrock 26.45: NOT VERIFIED.
 
-Required missing evidence includes:
-- exact game version from actual running session;
-- addon import/activation success;
+---
+
+## 13. RUNTIME / L6
+
+**L6 = ABSENT.**
+
+The repository contains `probeRuntime()` and `installRuntimeHarness()` capable of emitting `NEXY_RUNTIME_EVIDENCE` at player spawn, but no actual captured Bedrock 26.45 run was found.
+
+Missing mandatory runtime evidence:
+- exact running game version;
+- addon import/activation/load success in Bedrock 26.45;
 - runtime probe output;
-- event wiring execution;
-- real combat before-hurt event entering the production bridge;
-- actual final health/damage observation;
-- effect/durability/knockback state observation;
-- projectile/death/loot/XP observations;
-- independent engine-loaded and client-rendered chunk measurements;
+- actual before-hurt production execution;
+- health/damage observation;
+- critical eligibility observation;
+- knockback/effect/durability state;
+- projectile/death/loot/XP behavior;
+- independent engine-loaded chunk evidence;
+- independent client-render evidence;
 - device performance telemetry;
-- multiplayer session evidence;
-- parity case evidence.
+- multiplayer evidence;
+- Java parity evidence.
 
-Therefore every runtime-mandatory requirement remains NOT VERIFIED even where static/unit evidence passes.
-
----
-
-## 13. 100-CHUNK SEMANTICS
-
-A = logical workload entries: **PASS static** for bounded 100-offset generation.
-B = chunk targets: **PASS static as logical target generation**, not engine state.
-C = engine-loaded chunks: **NOT VERIFIED**.
-D = client-rendered chunks: **NOT VERIFIED**.
-
-No A/B result is promoted to C or D.
+Therefore runtime-mandatory REQ-IDs cannot close.
 
 ---
 
-## 14. RED-TEAM /x10
+## 14. 100-CHUNK EVIDENCE
 
-| # | Attack | Result |
+A = logical workload entries: PASS static.
+B = logical chunk targets: PASS static.
+C = engine-loaded chunks: NOT VERIFIED.
+D = client-rendered chunks: NOT VERIFIED.
+
+No A/B evidence is promoted to C/D.
+
+---
+
+## 15. RED-TEAM /x10
+
+| # | Attack | Finding |
 |---|---|---|
-| 01 | FALSE PASS | blocked: final verdict remains BLOCKED |
-| 02 | STALE SHA | identified; older reports are not inherited |
-| 03 | STALE REPORT | identified; this report supersedes stale project report |
-| 04 | UNREACHABLE PRODUCTION PATH | not accepted; before-hurt path has a static caller chain |
-| 05 | MOCK-ONLY BEHAVIOR | unit/mock evidence kept separate from runtime |
-| 06 | TEST/PRODUCTION MISMATCH | critical: unit critical path exists while runtime builder sets eligibility false |
-| 07 | WRONG API SEMANTICS | before-event mutation is API-consistent; exact live binding still unverified |
-| 08 | WRONG EXECUTION CONTEXT | no forbidden `applyDamage()` in before commit; downstream side effects still require runtime proof |
-| 09 | DUPLICATE / DOUBLE MUTATION | after-hurt and projectile after-event second damage path blocked statically |
-| 10 | MISSING RUNTIME / PERFORMANCE PROOF | confirmed critical blocker |
+| 01 | false PASS | prevented; final is BLOCKED |
+| 02 | stale SHA | older heads explicitly separated |
+| 03 | stale report | old project report replaced/invalidated as current proof |
+| 04 | unreachable path | current before-hurt production bridge is statically reachable |
+| 05 | mock-only behavior | tests kept separate from runtime proof |
+| 06 | test/production mismatch | critical resolver tested, runtime eligibility hardcoded false |
+| 07 | wrong API semantics | before-event damage mutation is documented; live target binding unverified |
+| 08 | wrong execution context | no `applyDamage()` in restricted before path; downstream effects still unresolved |
+| 09 | duplicate/double mutation | after-hurt/projectile secondary combat paths blocked statically |
+| 10 | missing runtime/performance proof | confirmed critical blocker |
 
-Additional red-team findings:
-- silent weapon/type fallback;
-- armor-component target gap;
-- runtime commit claims success while downstream stages are marked N/A;
-- no proven client rendering authority.
+Additional findings: silent weapon/type fallback; armor-component target gap; incomplete downstream combat transaction; no render authority.
 
 ---
 
-## 15. CONTRADICTIONS
+## 16. CONTRADICTIONS / STALE SOURCES
 
-### CONTR-001 — Current code vs old build blueprint
-Old blueprint describes `BedrockCombatPort.commit()` as permanently `committed:false`. Current code instead mutates `EntityHurtBeforeEvent.damage` and returns `committed:true` inside the before-hurt context. The old blueprint is historical construction evidence, not current state. Current source wins for implementation facts. fileciteturn3file0L2-L10
+### CONTR-001 — Historical blueprint vs current production source
+The old build blueprint describes the earlier fail-safe `commit:false` construction. Current production code instead mutates `EntityHurtBeforeEvent.damage` in the before-hurt path. The blueprint is historical planning evidence, not current implementation state.
 
-### CONTR-002 — Old project evidence report vs current HEAD
-The old project report cited implementation HEAD `cff52...` and report-update HEAD `2a60...`; current HEAD is `5d7402...`. It is stale for current-state claims. fileciteturn18file0L2-L6
+### CONTR-002 — Historical project report vs current HEAD
+The older project report referenced older implementation/report heads. It is stale for current-state claims and is not used as final proof. fileciteturn18file0L2-L6
 
-### CONTR-003 — Critical capability exists in core but production input forces false
-Core supports critical resolution, but current runtime request mapping always supplies `criticalEligible:false`. This is a real production-path completeness contradiction. 
+### CONTR-003 — Core critical capability vs runtime request mapping
+Core supports critical resolution, but the production request builder always sends `criticalEligible:false`. This is a real production-path completeness gap.
 
-Resolution: mark critical runtime behavior FAIL/INCOMPLETE; do not “fix” eligibility by inventing an unverified rule.
-
----
-
-## 16. STALE EVIDENCE
-
-Known stale sources for current-state claims:
-- `docs/evidence/PROJECT_EVIDENCE_REPORT.md` before this replacement.
-- historical `NEXY_FARVIEW_100_MASTER_BUILD_BLUEPRINT.md` implementation observations tied to older reconstruction heads.
-- C-06 evidence tied to `fff6cc...` is production-code-relevant because `5d7402...` changed only documentation, but its report itself is not current-head final-state documentation.
-
-Current CI run #119 and current source tree are the governing current-head evidence. 
+Resolution for all contradictions: current authoritative spec + current source outrank historical report/blueprint claims; unresolved runtime semantics remain frozen.
 
 ---
 
 ## 17. REPAIRS
 
-### Documentation repair
-The stale single project evidence report was replaced with this current-head report.
+### Repair performed
+The single project evidence report was repaired/replaced so it is current-head-oriented, uses the attached master specification as authority, removes stale final-state claims, and preserves the evidence boundary.
 
-### Production-code repair status
-No production-code patch was safely applied in this pass.
+### Production-code repair
+**Not performed.**
 
-Reason: the identified critical production gaps involve runtime semantics that are not provable in the available environment. A speculative patch to critical eligibility, downstream native side effects, or armor semantics would violate the no-guessing/no-false-proof requirement.
-
-This is an intentional evidence-boundary stop, not an assertion that the implementation is complete.
+Reason: the critical code defects identified are runtime-semantic decisions. A source-only patch would require guessing about critical state, native side effects, armor semantics, or supported execution context. The correct action under the evidence contract is to freeze those claims rather than manufacture a PASS.
 
 ---
 
-## 18. RE-VERIFICATION
-
-After the documentation mutation, GitHub Actions run #119 verified the resulting current HEAD with:
-- static blocker check PASS;
-- build PASS;
-- 38/38 tests PASS;
-- addon packaging PASS;
-- ZIP integrity PASS;
-- artifact upload PASS. fileciteturn32file0L2-L5
-
-No live runtime proof was added by CI.
-
----
-
-## 19. REQUIRED EXTERNAL ACTIONS TO UNBLOCK L6 / RUNTIME GATES
-
-1. Build/use the exact current-HEAD addon package.
-2. Run it in Minecraft Bedrock 26.45 exactly.
-3. Capture raw `NEXY_RUNTIME_EVIDENCE` plus game/client version.
-4. Execute controlled combat cases covering normal, critical eligibility, armor/no-armor target, resistance, cooldown, knockback, effects, durability, projectile, death/loot/XP.
-5. Capture before/after health, position/velocity, effect state and item durability.
-6. Capture independent logical/engine/client chunk measurements.
-7. Capture device FPS/tick/CPU/RAM/thermal measurements.
-8. Run the two-client multiplayer matrix.
-9. Run Java reference parity cases.
-10. Re-open affected REQ-IDs and re-run the full evidence gate after any code repair.
-
-No source-level report can substitute for these runtime observations.
-
----
-
-## 20. FINAL GATE
+## 18. FINAL GATE
 
 | Gate | Result |
 |---|---|
-| Scope locked | PASS |
+| Scope verified | PASS |
 | Current HEAD verified | PASS |
-| Authoritative master spec available | PASS |
+| Authoritative master spec identified | PASS |
 | Requirement checklist compiled/frozen | PASS |
-| Individual requirement processing | PASS static audit; runtime gates pending |
-| Production path traced | PASS static for current combat/far paths |
-| Expected/actual gap analysis | PASS |
-| Repairable defects fully repaired | FAIL / BLOCKED by runtime semantics for critical gaps |
-| Current-head CI | PASS |
+| No requirement skipped | PASS for audited checklist |
+| Production paths traced | PASS static |
+| Expected/Actual/Gaps recorded | PASS |
+| All repairable production defects repaired | **FAIL / BLOCKED** |
+| Current-head CI checked | PASS |
 | Build/typecheck | PASS |
-| Unit tests | PASS 38/38 |
-| Static blockers | PASS |
+| Tests | PASS 38/38 |
+| Static blocker check | PASS |
 | Package | PASS |
-| Runtime L6 | NOT VERIFIED |
-| Performance measurement | NOT VERIFIED |
-| 100 engine-loaded chunks | NOT VERIFIED |
-| 100 client-rendered chunks | NOT VERIFIED |
-| Multiplayer | NOT VERIFIED |
-| Java parity | NOT VERIFIED |
-| Critical production eligibility | FAIL |
-| Downstream combat transaction | NOT VERIFIED |
-| Critical unknowns | PRESENT |
+| L6 runtime | **NOT VERIFIED** |
+| Real performance measurement | **NOT VERIFIED** |
+| Engine-loaded 100 chunks | **NOT VERIFIED** |
+| Client-rendered 100 chunks | **NOT VERIFIED** |
+| Multiplayer | **NOT VERIFIED** |
+| Java parity | **NOT VERIFIED** |
+| Critical runtime eligibility | **FAIL** |
+| Downstream combat transaction | **NOT VERIFIED** |
+| Critical unknowns remain | **YES** |
+| Critical blockers remain | **YES** |
+| Final report is single report | PASS |
 | Final verdict | **BLOCKED** |
 
-**STOP CONDITION:** The evidence boundary has been reached. No claim is promoted beyond the evidence actually available.
+---
+
+## 19. EVIDENCE LEVEL SUMMARY
+
+L1 source/file/symbol: verified.
+L2 static production call-path: verified for inspected Far View and combat paths.
+L3 specification alignment: verified for static architecture/semantics where code matches; mismatches are explicitly recorded.
+L4 documented API + version declaration: partial; live target binding absent.
+L5 CI/unit/build/package evidence: verified.
+L6 real Bedrock 26.45 runtime: **ABSENT**.
+
+The weakest mandatory critical evidence therefore controls the verdict.
 
 ---
 
-## 21. EVIDENCE LEVEL SUMMARY
+## 20. REQUIRED EXTERNAL ACTIONS
 
-- L0: historical claims/reports — not used as final proof.
-- L1: source/files/symbols — extensively verified.
-- L2: static production call paths — verified for current combat and far-view paths.
-- L3: specification alignment — verified for the stated static architecture and semantic separation, with identified mismatches.
-- L4: official API documentation + target-version declaration — partially verified; live target binding remains unverified.
-- L5: production-equivalent/unit/CI evidence — verified for current CI test/build/package scope.
-- L6: real Bedrock 26.45 runtime — **ABSENT**.
+To move the blocked requirements forward, the next evidence cycle must use the exact package/source HEAD and an actual Minecraft Bedrock 26.45 environment to capture the runtime harness plus controlled combat, far-view, performance, multiplayer and parity observations. Any subsequent repair must then reopen affected REQ-IDs, run tests/API verification, re-trace production, and repeat the global/red-team gates.
 
-Therefore the weakest mandatory runtime evidence controls the final verdict.
+Until that evidence exists, runtime-mandatory claims remain NOT VERIFIED and the project must not be called complete.
 
----
+## 21. FINAL STATE
 
-## 22. FINAL STATE
+WHAT WAS INSPECTED: authoritative task specification, repository specification lock, current source, production call paths, tests, package/manifest, CI workflow/current CI runs, API documentation relevant to the inspected path, and historical evidence/blueprints.
 
-WHAT WAS INSPECTED:
-Current repository HEAD, authoritative attached specification, repository Phase-0 lock, production source, tests, package/manifest, CI workflow and current CI run, existing evidence/procedure docs, and API semantics relevant to the inspected combat path.
+WHAT WAS REPAIRED: the single evidence report and its provenance/chronology; no production implementation files.
 
-WHAT WAS REPAIRED:
-The stale single project evidence report was replaced with a current-head report and the stale-report contradiction was removed from the active evidence record.
+WHAT WAS VERIFIED: current-head identity, bounded static foundation, production call-path wiring, current CI/build/test/package, evidence separation and documented before-event semantics.
 
-WHAT WAS VERIFIED:
-Current-head identity, source structure, bounded static foundation, current production call paths, static evidence boundaries, package/build/test/CI, and documented pre-damage API semantics.
+WHAT WAS NOT VERIFIED: live Bedrock 26.45 behavior, complete combat side effects, critical runtime eligibility, engine/client 100-chunk behavior, real performance, multiplayer, parity, and end-to-end projectile/death/loot/XP.
 
-WHAT WAS NOT VERIFIED:
-Exact live Bedrock 26.45 behavior, full combat transaction side effects, critical eligibility from real gameplay state, engine-loaded chunks, client-rendered chunks, device performance, multiplayer, Java parity, and end-to-end projectile/death/loot/XP behavior.
+WHAT REMAINS UNKNOWN: all runtime-dependent semantics not directly observed in the target environment.
 
-WHAT REMAINS UNKNOWN:
-Any behavior that depends on actual Bedrock 26.45 execution or semantics not demonstrable from the available evidence.
-
-WHAT BLOCKS PROOF:
-No real Bedrock 26.45 runtime environment/evidence plus unresolved production-path semantic gaps identified above.
+WHAT BLOCKS PROOF: absence of L6 target runtime plus unresolved production semantic gaps.
 
 **FINAL VERDICT: BLOCKED**
